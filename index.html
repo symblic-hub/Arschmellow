@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Marshmellow Mayhem</title>
+  <meta name="description" content="Online-Merk- und Tauschkartenspiel für 2–6 Spieler im Browser.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'><rect x='8' y='13' width='44' height='40' rx='15' fill='%23fff1dc' stroke='%23c98' stroke-width='2'/><circle cx='23' cy='31' r='3'/><circle cx='37' cy='31' r='3'/><path d='M22 38 Q30 46 38 38' fill='none' stroke='black' stroke-width='3'/></svg>">
+  <link rel="stylesheet" href="style.css">
+  <script src="vendor/peerjs.min.js"></script>
+  <script type="module" src="src/main.js"></script>
+</head>
+<body>
+  <!-- Startseite -->
+  <main id="home" class="screen">
+    <div class="hero">
+      <div class="logo-mallows" aria-hidden="true">
+        <svg viewBox="0 0 60 60" width="84" height="84"><rect x="8" y="13" width="44" height="40" rx="15" fill="#fff1dc" stroke="rgba(60,30,10,.35)" stroke-width="1.6"/><ellipse cx="30" cy="18" rx="19" ry="5.5" fill="#fff" opacity=".6"/><circle cx="18.5" cy="36" r="3.4" fill="#ff9fb2" opacity=".7"/><circle cx="41.5" cy="36" r="3.4" fill="#ff9fb2" opacity=".7"/><circle cx="23" cy="31" r="2.7" fill="#3a2416"/><circle cx="37" cy="31" r="2.7" fill="#3a2416"/><circle cx="24" cy="30" r=".9" fill="#fff"/><circle cx="38" cy="30" r=".9" fill="#fff"/><path d="M22 37 Q30 46 38 37" fill="none" stroke="#3a2416" stroke-width="2.6" stroke-linecap="round"/></svg>
+      </div>
+      <h1>Marshmellow <span>Mayhem</span></h1>
+      <p class="tagline">Das Merk- und Tauschspiel, bei dem weniger mehr ist. 2–6 Spieler · online · kostenlos</p>
+    </div>
+    <div class="home-card">
+      <label class="field">Dein Name
+        <input id="name" maxlength="20" autocomplete="nickname" placeholder="z. B. Toni">
+      </label>
+      <div id="resume" class="resume" hidden>
+        <span>Dein Raum <b id="resume-code"></b> ist noch gespeichert.</span>
+        <button data-ui="resume">Fortsetzen</button>
+      </div>
+      <form id="create-form">
+        <button class="big primary" type="submit">Neuen Raum erstellen</button>
+      </form>
+      <div class="or"><span>oder</span></div>
+      <form id="join-form" class="join-row">
+        <input id="join-code" maxlength="11" placeholder="Raumcode" autocomplete="off" spellcheck="false">
+        <button class="big" type="submit">Beitreten</button>
+      </form>
+      <button class="linkish" data-ui="rules">📖 Spielregeln</button>
+    </div>
+  </main>
+
+  <!-- Lobby -->
+  <main id="lobby" class="screen" hidden>
+    <header class="topbar">
+      <div class="brand">Marshmellow <span>Mayhem</span></div>
+      <div class="room">Raum <b id="room-code"></b></div>
+      <div class="top-actions">
+        <button class="ghost" data-ui="rules">📖 Regeln</button>
+        <button class="ghost" data-ui="leave">Verlassen</button>
+      </div>
+    </header>
+    <div id="lobby-body"></div>
+  </main>
+
+  <!-- Spieltisch -->
+  <main id="game" class="screen" hidden>
+    <header class="topbar">
+      <div class="brand">Marshmellow <span>Mayhem</span></div>
+      <div class="room" id="round-info"></div>
+      <div class="top-actions">
+        <button class="ghost" data-ui="rules">📖 Regeln</button>
+        <button class="ghost" data-ui="leave">Verlassen</button>
+      </div>
+    </header>
+    <div class="table-wrap">
+      <section class="table">
+        <div id="opponents" class="opponents"></div>
+        <div class="center">
+          <div id="piles" class="piles"></div>
+          <div class="center-info">
+            <div id="prompt" class="prompt"></div>
+            <div id="lastlog" class="lastlog"></div>
+          </div>
+        </div>
+        <div id="mine" class="mine">
+          <div id="myinfo" class="myinfo"></div>
+          <div id="myhand"></div>
+        </div>
+      </section>
+      <aside class="side">
+        <div class="panel">
+          <h3>Punkte</h3>
+          <div id="scores" class="scores"></div>
+        </div>
+        <div class="panel log-panel">
+          <h3>Verlauf</h3>
+          <ol id="log" class="log"></ol>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box"><div id="modal-body"></div></div>
+  </div>
+  <div id="busy" class="busy" hidden></div>
+  <div id="status" class="status" hidden></div>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+</body>
+</html>
