@@ -21,7 +21,8 @@ Der Server hält den Spielstand und schickt jedem nur das, was er sehen darf –
 
 ## Sound & Animationen
 
-- Jede Aktion hat einen eigenen Sound (live im Browser erzeugt) – ausschalten mit 🔊 oben rechts.
+- Echte Kartengeräusche beim Ziehen, Ablegen, Tauschen und Mischen (Aufnahmen: Kenney „Casino Audio“, CC0),
+  dazu erzeugte Signaltöne (Glocke „Du bist dran“, MAYHEM …) – ausschalten mit 🔊 oben rechts.
 - Karten fliegen sichtbar vom Stapel in die Hand, auf die Ablage und beim Tauschen zwischen den Spielern.
 - Was im letzten Zug passiert ist, bleibt markiert (✨ neu, 🔄 getauscht, ⚠ Strafe, 👀 gespickt) und steht im Ticker.
 
@@ -101,4 +102,4 @@ npm run e2e           # Browser-Test: 3 Spieler gegen den lokalen Server (Playwr
 | `src/ui.js` | Darstellung, Karten-Grafiken, Klick-Abläufe, Markierungen |
 | `src/fx.js` | Animationen (fliegende Karten, Umdrehen, Hervorhebungen) |
 | `src/sound.js` | Soundeffekte (Web Audio API) |
-| `assets/` | Pixel-Art-Icons (`make_icon.py`), Schrift Fredoka (SIL OFL) |
+| `assets/` | Pixel-Art-Icons (`make_icon.py`), Schrift Fredoka (SIL OFL), Kartengeräusche (Kenney, CC0) |

@@ -302,6 +302,7 @@ export const getView = () => current;
 // ---------------------------------------------------------------- Render
 
 let lastSeq = null;
+let wasLobby = false;
 
 export function render(view) {
   const prevRects = fx.snapshot();
@@ -310,10 +311,13 @@ export function render(view) {
   $('#room-code').textContent = view.room.code;
   if (!view.game) {
     lastSeq = null;
+    wasLobby = true;
     showScreen('lobby');
     renderLobby(view);
     return;
   }
+  if (lastSeq === null && view.game.phase === 'peek' && wasLobby) sound.play('deal');
+  wasLobby = false;
   showScreen('game');
   renderGame(view);
 

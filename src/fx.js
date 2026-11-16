@@ -125,6 +125,7 @@ async function playOne(ev, prev, view, ctx) {
       const from = prev.get('pile-drawn') ?? rectOf(el('#pile-deck'));
       const outFrom = prev.get(`${ev.p}:${ev.i}`) ?? rectOf(slot);
       sound('place');
+      setTimeout(() => sound('discard'), 380); // alte Karte landet auf der Ablage
       await Promise.all([
         fly(back, from, rectOf(slot), { hide: slot, duration: 520 }),
         fly(ctx.cardFace(ev.out), outFrom, rectOf(discard), { hide: discard, delay: 160, duration: 560, arc: 80, spin: -8 }),
@@ -213,7 +214,7 @@ async function playOne(ev, prev, view, ctx) {
       return;
     }
     case 'reshuffle': {
-      sound('discard');
+      sound('shuffle');
       flash(el('#pile-deck'), 'shuffle', 800);
       return;
     }
@@ -221,6 +222,10 @@ async function playOne(ev, prev, view, ctx) {
       const area = el(`[data-player="${CSS.escape(ev.p)}"]`);
       flash(area, 'turn-start', 1200);
       if (ev.p === ctx.me) sound('yourTurn');
+      return;
+    }
+    case 'round': {
+      sound('deal');
       return;
     }
     case 'roundEnd': {

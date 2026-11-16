@@ -21,7 +21,15 @@ function audio() {
 /** Browser erlauben Ton erst nach einer Nutzeraktion – beim ersten Klick freischalten. */
 export function unlock() {
   const c = audio();
-  if (c && c.state === 'suspended') c.resume().catch(() => {});
+  if (!c) return;
+  if (c.state === 'suspended') c.resume().catch(() => {});
+  loadSamples();
+}
+
+/** Für Tests: Wie viele Aufnahmen sind geladen? */
+export async function samplesReady() {
+  await loadSamples();
+  return Object.fromEntries(Object.entries(buffers).map(([k, v]) => [k, v.length]));
 }
 
 export const isMuted = () => muted;
@@ -91,31 +99,94 @@ function noise({ at = 0, dur = 0.12, vol = 0.25, freq = 2000, q = 0.8, sweepTo =
 
 const NOTE = (n) => 440 * 2 ** ((n - 69) / 12); // MIDI-Note → Hz
 
+// ---------------------------------------------------------------- Echte Kartengeräusche
+// Aufnahmen: Kenney „Casino Audio“ (CC0) – siehe assets/sounds/LICENSE.txt
+
+const range = (prefix, n) => Array.from({ length: n }, (_, k) => `${prefix}-${k + 1}`);
+const SAMPLE_FILES = {
+  slide: range('card-slide', 8),
+  place: range('card-place', 4),
+  shove: range('card-shove', 4),
+  fan: range('card-fan', 2),
+  shuffle: ['card-shuffle'],
+  takeout: ['cards-pack-take-out-1'],
+};
+const buffers = {};
+let loading = null;
+
+function loadSamples() {
+  if (loading) return loading;
+  const c = audio();
+  if (!c) return Promise.resolve();
+  const base = new URL('../assets/sounds/', import.meta.url);
+  loading = Promise.all(Object.entries(SAMPLE_FILES).flatMap(([group, names]) => names.map(async (name) => {
+    try {
+      const res = await fetch(new URL(`${name}.mp3`, base));
+      if (!res.ok) return;
+      const buf = await c.decodeAudioData(await res.arrayBuffer());
+      (buffers[group] ||= []).push(buf);
+    } catch { /* dann eben der Synth-Ersatz */ }
+  })));
+  return loading;
+}
+
+/** Spielt eine zufällige Aufnahme der Gruppe (leicht variierte Tonhöhe). false = noch nicht geladen. */
+function sample(group, { vol = 0.5, rate = 1, at = 0, pan = 0, jitter = 0.06 } = {}) {
+  const list = buffers[group];
+  if (!list?.length) return false;
+  const c = audio();
+  const src = c.createBufferSource();
+  src.buffer = list[Math.floor(Math.random() * list.length)];
+  src.playbackRate.value = rate * (1 + (Math.random() * 2 - 1) * jitter);
+  const g = c.createGain();
+  g.gain.value = vol;
+  src.connect(g);
+  let node = g;
+  if (pan && c.createStereoPanner) {
+    const p = c.createStereoPanner();
+    p.pan.value = pan;
+    g.connect(p);
+    node = p;
+  }
+  node.connect(master);
+  src.start(c.currentTime + at);
+  return true;
+}
+
+/** Lautstärken der Kartengeräusche – hier zentral anpassbar. */
+const VOL = { slide: 0.6, place: 0.7, shove: 0.5, flip: 0.4, fan: 0.6, shuffle: 0.55, takeout: 0.5 };
+
 // ---------------------------------------------------------------- Effekte
 
 const SOUNDS = {
-  draw: () => noise({ dur: 0.16, vol: 0.22, freq: 1200, sweepTo: 4200, q: 0.7 }),
-  place: () => {
-    tone({ freq: 160, to: 70, type: 'sine', dur: 0.12, vol: 0.45 });
-    noise({ dur: 0.05, vol: 0.12, freq: 3000, q: 1.2 });
-  },
-  flip: () => {
-    noise({ dur: 0.07, vol: 0.18, freq: 5000, q: 2 });
-    tone({ freq: 880, to: 1320, type: 'triangle', dur: 0.09, vol: 0.12 });
-  },
-  discard: () => noise({ dur: 0.2, vol: 0.2, freq: 2600, sweepTo: 700, q: 0.6 }),
+  draw: () => sample('slide', { vol: VOL.slide }) || noise({ dur: 0.16, vol: 0.22, freq: 1200, sweepTo: 4200, q: 0.7 }),
+  place: () => sample('place', { vol: VOL.place }) || (
+    tone({ freq: 160, to: 70, type: 'sine', dur: 0.12, vol: 0.45 }), noise({ dur: 0.05, vol: 0.12, freq: 3000, q: 1.2 })),
+  flip: () => sample('place', { vol: VOL.flip, rate: 1.3 }) || (
+    noise({ dur: 0.07, vol: 0.18, freq: 5000, q: 2 }), tone({ freq: 880, to: 1320, type: 'triangle', dur: 0.09, vol: 0.12 })),
+  discard: () => sample('shove', { vol: VOL.shove }) || noise({ dur: 0.2, vol: 0.2, freq: 2600, sweepTo: 700, q: 0.6 }),
   swap: () => {
-    noise({ dur: 0.22, vol: 0.25, freq: 900, sweepTo: 4000, pan: -0.7 });
-    noise({ at: 0.14, dur: 0.22, vol: 0.25, freq: 4000, sweepTo: 900, pan: 0.7 });
-    [64, 67, 71, 76].forEach((n, k) => tone({ freq: NOTE(n), type: 'triangle', at: 0.1 + k * 0.06, dur: 0.18, vol: 0.12 }));
+    const real = sample('slide', { vol: VOL.slide, pan: -0.7 }) && sample('slide', { vol: VOL.slide, pan: 0.7, at: 0.18 });
+    if (!real) {
+      noise({ dur: 0.22, vol: 0.25, freq: 900, sweepTo: 4000, pan: -0.7 });
+      noise({ at: 0.14, dur: 0.22, vol: 0.25, freq: 4000, sweepTo: 900, pan: 0.7 });
+    }
+    [64, 67, 71, 76].forEach((n, k) => tone({ freq: NOTE(n), type: 'triangle', at: 0.2 + k * 0.06, dur: 0.18, vol: 0.08 }));
+  },
+  shuffle: () => sample('shuffle', { vol: VOL.shuffle, jitter: 0 }) || noise({ dur: 0.6, vol: 0.15, freq: 3000, q: 0.5 }),
+  deal: () => {
+    if (!sample('takeout', { vol: VOL.takeout })) return;
+    [0.3, 0.45, 0.6, 0.75].forEach((at) => sample('slide', { vol: VOL.slide * 0.7, at, rate: 1.1 }));
   },
   spy: () => [84, 88, 91, 96].forEach((n, k) => tone({ freq: NOTE(n), type: 'sine', at: k * 0.05, dur: 0.35, vol: 0.08 })),
   again: () => [60, 64, 67, 72].forEach((n, k) => tone({ freq: NOTE(n), type: 'square', at: k * 0.07, dur: 0.12, vol: 0.06 })),
   setOk: () => {
-    [72, 76, 79, 84, 88].forEach((n, k) => tone({ freq: NOTE(n), type: 'triangle', at: k * 0.06, dur: 0.4, vol: 0.12 }));
+    sample('fan', { vol: VOL.fan });
+    [72, 76, 79, 84, 88].forEach((n, k) => tone({ freq: NOTE(n), type: 'triangle', at: 0.1 + k * 0.06, dur: 0.4, vol: 0.1 }));
     noise({ at: 0.05, dur: 0.4, vol: 0.06, freq: 8000, q: 3 });
   },
   setFail: () => {
+    sample('shove', { vol: VOL.shove });
     tone({ freq: 196, to: 98, type: 'sawtooth', dur: 0.45, vol: 0.14 });
     tone({ freq: 207, to: 103, type: 'square', dur: 0.45, vol: 0.06 });
   },
