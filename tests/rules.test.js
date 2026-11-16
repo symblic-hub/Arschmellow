@@ -33,7 +33,7 @@ test('Deck hat 62 Karten mit richtiger Verteilung', () => {
   const d = buildDeck();
   assert.equal(d.length, 62);
   assert.equal(d.filter((c) => c.kind === 'action').length, 15);
-  assert.equal(d.filter((c) => c.value < 0).length, 2);
+  assert.deepEqual(d.filter((c) => c.value < 0).map((c) => c.value).sort((a, b) => a - b), [-4, -2]);
   assert.equal(new Set(d.map((c) => c.id)).size, 62);
 });
 

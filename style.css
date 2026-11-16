@@ -206,6 +206,7 @@ h1 span, .brand span { color: var(--pink); }
 .action-art span { font-size: calc(var(--card-w) * .42); filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .2)); }
 .action-art { background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 50%; inset: 20% 16% 26%; }
 .cname { position: absolute; bottom: 5%; left: 0; right: 0; text-align: center; font-size: calc(var(--card-w) * .13); font-weight: 800; letter-spacing: .01em; padding: 0 6%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cname.long { white-space: normal; font-size: calc(var(--card-w) * .11); line-height: 1.05; bottom: 4%; }
 .hand.sm .cname, .hand.xs .cname { display: none; }
 .hand.sm .art, .hand.xs .art { inset: 14% 8% 12%; }
 

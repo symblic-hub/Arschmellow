@@ -49,7 +49,8 @@ Nach der Original-Spielanleitung von „Arschmallows“ – unter eigenem Namen 
 - Nach **6 Runden** gewinnt die niedrigste Gesamtsumme. Wer in einer Runde die meisten Punkte hatte, beginnt die nächste.
 - Ist der Nachziehstapel leer, wird die Ablage gemischt und die oberste Karte neu aufgedeckt.
 
-**Deck (62 Karten, Verteilung angenommen):** Zahlen 0–8 je 5×, *Goldener Mallow* (−3) 1×, *Mallow-König* (−5) 1×, je 5 Aktionskarten.
+**Deck (62 Karten):** Zahlen 0–8 je 5×, *Goldener Mallow* (−2) 1×, *Mallow-König* (−4) 1×, je 5 Aktionskarten (Spicken 9, Tauschen 10, Nochmal! 11).
+Die Werte stammen von den Originalkarten; wie oft die Zahlen- und Aktionskarten vorkommen, ist angenommen.
 Alle Werte lassen sich in `src/rules.js` → `CONFIG` anpassen.
 
 ## Veröffentlichen (GitHub Pages)

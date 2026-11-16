@@ -13,8 +13,8 @@ export const CONFIG = {
   numbers: { 0: 5, 1: 5, 2: 5, 3: 5, 4: 5, 5: 5, 6: 5, 7: 5, 8: 5 },
   // Minuskarten (zählen als Zahlenkarten)
   specials: [
-    { value: -3, name: 'Goldener Mallow', count: 1 },
-    { value: -5, name: 'Mallow-König', count: 1 },
+    { value: -2, name: 'Goldener Mallow', count: 1 },
+    { value: -4, name: 'Mallow-König', count: 1 },
   ],
   // Aktionskarten
   actions: [

@@ -29,7 +29,7 @@ const ACTION_META = {
 
 function mallowSVG(v) {
   const special = v < 0;
-  const body = special ? (v <= -5 ? '#ffd23f' : '#ffe58f') : ROAST[Math.max(0, Math.min(8, v))];
+  const body = special ? (v <= -4 ? '#ffd23f' : '#ffe58f') : ROAST[Math.max(0, Math.min(8, v))];
   const dark = v >= 7;
   const ink = dark ? '#fff4e6' : '#3a2416';
   let mouth;
@@ -40,8 +40,8 @@ function mallowSVG(v) {
   else mouth = `<ellipse cx="30" cy="41" rx="3.6" ry="4.4" fill="${ink}"/>`;
   const cheeks = v <= 3 ? `<circle cx="18.5" cy="36" r="3.4" fill="#ff9fb2" opacity=".7"/><circle cx="41.5" cy="36" r="3.4" fill="#ff9fb2" opacity=".7"/>` : '';
   const smoke = v >= 7 ? `<path d="M20 9 q-3 -3 0 -6 M30 8 q-3 -3 0 -6 M40 9 q-3 -3 0 -6" fill="none" stroke="#9a8f8a" stroke-width="2" stroke-linecap="round" opacity=".8"/>` : '';
-  const crown = v <= -5 ? `<path d="M18 13 L22 3 L27 10 L30 1 L33 10 L38 3 L42 13 Z" fill="#ffb300" stroke="#b77900" stroke-width="1.5" stroke-linejoin="round"/>` : '';
-  const sparkle = v === -3 ? `<path d="M48 8 l1.5 4 4 1.5 -4 1.5 -1.5 4 -1.5 -4 -4 -1.5 4 -1.5z M11 12 l1 2.6 2.6 1 -2.6 1 -1 2.6 -1 -2.6 -2.6 -1 2.6 -1z" fill="#fff6c4" stroke="#d9a400" stroke-width=".8"/>` : '';
+  const crown = v <= -4 ? `<path d="M18 13 L22 3 L27 10 L30 1 L33 10 L38 3 L42 13 Z" fill="#ffb300" stroke="#b77900" stroke-width="1.5" stroke-linejoin="round"/>` : '';
+  const sparkle = v < 0 && v > -4 ? `<path d="M48 8 l1.5 4 4 1.5 -4 1.5 -1.5 4 -1.5 -4 -4 -1.5 4 -1.5z M11 12 l1 2.6 2.6 1 -2.6 1 -1 2.6 -1 -2.6 -2.6 -1 2.6 -1z" fill="#fff6c4" stroke="#d9a400" stroke-width=".8"/>` : '';
   const eyes = v >= 6 && v < 7
     ? `<path d="M20.5 29 l5 3 M39.5 29 l-5 3" stroke="${ink}" stroke-width="2.4" stroke-linecap="round"/>`
     : `<circle cx="23" cy="31" r="2.7" fill="${ink}"/><circle cx="37" cy="31" r="2.7" fill="${ink}"/><circle cx="24" cy="30" r=".9" fill="#fff"/><circle cx="38" cy="30" r=".9" fill="#fff"/>`;
@@ -59,14 +59,14 @@ export function cardFace(card) {
     return `<div class="card front action" style="--accent:${m.color}" title="${esc(m.hint)}">
       <span class="corner tl">${num(card.value)}</span>
       <div class="art action-art"><span>${m.icon}</span></div>
-      <div class="cname">${esc(card.name)}</div>
+      <div class="cname${String(card.name).length > 9 ? ' long' : ''}">${esc(card.name)}</div>
     </div>`;
   }
   const cls = card.value < 0 ? 'special' : card.value >= 7 ? 'burnt' : '';
   return `<div class="card front number ${cls}" style="--roast:${ROAST[Math.max(0, Math.min(8, card.value))]}">
     <span class="corner tl">${num(card.value)}</span>
     <div class="art">${mallowSVG(card.value)}</div>
-    <div class="cname">${esc(card.name)}</div>
+    <div class="cname${String(card.name).length > 9 ? ' long' : ''}">${esc(card.name)}</div>
   </div>`;
 }
 
@@ -537,5 +537,5 @@ const RULES_HTML = `
 <p>Glaubst du, die wenigsten Punkte zu haben, ruf zu Beginn deines Zuges <b>„MAYHEM!“</b>. Die Runde endet auch, wenn jemand nur noch offene Karten hat. Danach hat <b>jeder andere noch einen letzten Zug</b>. Dann wird alles aufgedeckt und gezählt.</p>
 <p>Hat der Rufer nicht die niedrigste Summe (Gleichstand zählt für ihn), werden seine Punkte <b>verdoppelt</b>. Wer in der Runde die meisten Punkte hatte, beginnt die nächste.</p>
 <h3>Karten</h3>
-<p>Zahlenkarten 0–8, zwei Minuskarten – <b>Goldener Mallow (−3)</b> und <b>Mallow-König (−5)</b> – sowie Aktionskarten.</p>
+<p>Zahlenkarten 0–8, zwei Minuskarten – <b>Goldener Mallow (−2)</b> und <b>Mallow-König (−4)</b> – sowie Aktionskarten.</p>
 <button class="primary" data-ui="close-modal">Los geht's!</button>`;
