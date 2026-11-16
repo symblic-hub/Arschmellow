@@ -78,11 +78,22 @@ test('Zug: ziehen, tauschen, aufdecken, nächster Spieler', () => {
   assert.equal(g.hands[cur][0].card, drawn);
   assert.equal(g.hands[cur][0].up, false);
   assert.equal(g.discard.at(-1), old);
-  assert.equal(g.turn.step, 'reveal');
-  applyAction(g, cur, { type: 'reveal', index: 0 });
-  assert.equal(g.hands[cur][0].up, true);
-  assert.notEqual(g.turn.player, cur);
+  assert.notEqual(g.turn.player, cur, 'Tauschen beendet den Zug – kein Aufdecken');
+  assert.ok(g.hands[cur].every((s) => !s.up));
   assert.throws(() => applyAction(g, g.turn.player, { type: 'replace', index: 0 }), RuleError);
+});
+
+test('Ablehnen: Karte ablegen, dann eine Karte aufdecken (sperren)', () => {
+  const g = createGame(P, {}, seeded());
+  readyAll(g);
+  const cur = g.turn.player;
+  applyAction(g, cur, { type: 'draw', from: 'deck' });
+  applyAction(g, cur, { type: 'reject' });
+  assert.equal(g.turn.step, 'reveal');
+  assert.throws(() => applyAction(g, cur, { type: 'replace', index: 0 }), RuleError);
+  applyAction(g, cur, { type: 'reveal', index: 2 });
+  assert.equal(g.hands[cur][2].up, true);
+  assert.notEqual(g.turn.player, cur);
 });
 
 test('Gezogene Stapelkarte sehen nur der Ziehende', () => {
@@ -119,7 +130,8 @@ test('Aktion nur von Stapel; Spicken zeigt Karte nur dem Spicker', () => {
   assert.equal(viewFor(g, other).spy, null);
   applyAction(g, cur, { type: 'ack' });
   assert.equal(viewFor(g, cur).spy, null);
-  assert.equal(g.turn.step, 'reveal');
+  assert.notEqual(g.turn.player, cur, 'nach einer Aktion endet der Zug ohne Aufdecken');
+  assert.ok(g.hands[cur].every((s) => !s.up));
 
   // Aktionskarte von der Ablage: keine Aktion
   const g2 = createGame(P, {}, seeded(7));
@@ -152,11 +164,10 @@ test('Nochmal!: zwei Extra-Züge', () => {
   g.deck.push(card(11, 'action', 'again'));
   applyAction(g, cur, { type: 'draw', from: 'deck' });
   applyAction(g, cur, { type: 'useAction' });
-  applyAction(g, cur, { type: 'reveal', index: 0 });
   assert.equal(g.turn.player, cur);
+  assert.equal(g.turn.step, 'start');
   applyAction(g, cur, { type: 'draw', from: 'deck' });
-  applyAction(g, cur, { type: 'reject' });
-  applyAction(g, cur, { type: 'reveal', index: 1 });
+  applyAction(g, cur, { type: 'replace', index: 0 });
   assert.equal(g.turn.player, cur);
   applyAction(g, cur, { type: 'draw', from: 'deck' });
   applyAction(g, cur, { type: 'reject' });
@@ -164,65 +175,138 @@ test('Nochmal!: zwei Extra-Züge', () => {
   assert.notEqual(g.turn.player, cur);
 });
 
-test('Gleiche loswerden: gültig (3 Zahlen) und ungültig (Strafkarte)', () => {
+test('Karten loswerden mit der aufgenommenen Karte', () => {
+  // gültig: 3 gleiche Zahlen
   const g = createGame(P, {}, seeded());
   readyAll(g);
   const cur = g.turn.player;
   setHand(g, cur, [4, 4, 7, 4, 2, 1]);
+  assert.throws(() => applyAction(g, cur, { type: 'set', indices: [0, 1, 3] }), RuleError, 'erst Karte nehmen');
+  applyAction(g, cur, { type: 'draw', from: 'deck' });
+  const drawn = g.turn.drawn;
   applyAction(g, cur, { type: 'set', indices: [0, 1, 3] });
   assert.equal(g.hands[cur].length, 4);
-  assert.deepEqual(g.hands[cur].slice(0, 3).map((s) => s.card.value), [7, 2, 1]);
-  assert.equal(g.turn.step, 'draw');
-  assert.throws(() => applyAction(g, cur, { type: 'call' }), RuleError);
-  assert.throws(() => applyAction(g, cur, { type: 'set', indices: [0, 1] }), RuleError);
+  assert.deepEqual(g.hands[cur].map((s) => s.card.value).slice(0, 3), [7, 2, 1]);
+  assert.equal(g.hands[cur][3].card, drawn);
+  assert.equal(g.hands[cur][3].up, false);
+  assert.equal(g.discard.slice(-3).every((c) => c.value === 4), true);
+  assert.notEqual(g.turn.player, cur, 'Zug endet');
 
+  // ungültig: Strafkarte, alles bleibt verdeckt
   const g2 = createGame(P, {}, seeded(3));
   readyAll(g2);
   const c2 = g2.turn.player;
   setHand(g2, c2, [4, 5, 4, 3, 3, 3]);
+  applyAction(g2, c2, { type: 'draw', from: 'discard' });
   applyAction(g2, c2, { type: 'set', indices: [0, 1, 2] });
   assert.equal(g2.hands[c2].length, 7);
   assert.ok(g2.hands[c2].every((s) => !s.up));
 
-  // 2 Aktionskarten (verschiedene) sind gültig
+  // 2 gleiche Aktionskarten gültig, 2 verschiedene nicht
   const g3 = createGame(P, {}, seeded(5));
   readyAll(g3);
   const c3 = g3.turn.player;
-  setHand(g3, c3, [card(9, 'action', 'spy'), card(11, 'action', 'again'), 1, 2, 3, 4]);
+  setHand(g3, c3, [card(9, 'action', 'spy'), card(9, 'action', 'spy'), card(11, 'action', 'again'), 2, 3, 4]);
+  applyAction(g3, c3, { type: 'draw', from: 'deck' });
   applyAction(g3, c3, { type: 'set', indices: [0, 1] });
   assert.equal(g3.hands[c3].length, 5);
+
+  const g4 = createGame(P, {}, seeded(6));
+  readyAll(g4);
+  const c4 = g4.turn.player;
+  setHand(g4, c4, [card(9, 'action', 'spy'), card(11, 'action', 'again'), 1, 2, 3, 4]);
+  applyAction(g4, c4, { type: 'draw', from: 'deck' });
+  applyAction(g4, c4, { type: 'set', indices: [0, 1] });
+  assert.equal(g4.hands[c4].length, 7, 'verschiedene Aktionskarten = Strafkarte');
 });
 
-test('Rufen: Rufer liegt richtig / falsch (Punkte verdoppelt)', () => {
+function passTurn(g) {
+  const pid = g.turn.player;
+  applyAction(g, pid, { type: 'draw', from: 'deck' });
+  applyAction(g, pid, { type: 'replace', index: g.hands[pid].findIndex((s) => !s.up) });
+}
+
+test('Rufen: alle anderen haben noch einen letzten Zug', () => {
   const g = createGame(P, {}, seeded());
   readyAll(g);
   const cur = g.turn.player;
-  const others = P.filter((p) => p.id !== cur).map((p) => p.id);
-  setHand(g, cur, [1, 1, 1, 1, 1, 1]);
-  setHand(g, others[0], [5, 5, 5, 5, 5, 5]);
-  setHand(g, others[1], [1, 1, 1, 1, 1, 1]);
   applyAction(g, cur, { type: 'call' });
+  assert.equal(g.phase, 'turn');
+  assert.deepEqual(viewFor(g, 'a').final, { ender: cur, caller: cur });
+  const seen = [];
+  while (g.phase === 'turn') {
+    assert.notEqual(g.turn.player, cur, 'Rufer ist nicht mehr dran');
+    assert.throws(() => applyAction(g, g.turn.player, { type: 'call' }), RuleError, 'kein zweiter Ruf');
+    seen.push(g.turn.player);
+    passTurn(g);
+  }
+  assert.equal(seen.length, P.length - 1);
   assert.equal(g.phase, 'roundEnd');
-  assert.equal(g.roundResult.callerFailed, false, 'Gleichstand zählt als Erfolg');
-  assert.equal(g.totals[cur], 6);
+});
 
-  const g2 = createGame(P, {}, seeded());
+test('Rufen: richtig (Gleichstand zählt) / falsch (Punkte verdoppelt)', () => {
+  // 2 Spieler: Rufer ruft, Gegner macht den letzten Zug; Hände direkt vor dem Ende festlegen
+  const g2 = createGame(P.slice(0, 2), {}, seeded());
   readyAll(g2);
   const c2 = g2.turn.player;
-  const o2 = P.filter((p) => p.id !== c2).map((p) => p.id);
-  setHand(g2, c2, [2, 2, 2, 2, 2, 2]);
-  setHand(g2, o2[0], [1, 1, 1, 1, 1, 1]);
-  setHand(g2, o2[1], [8, 8, 8, 8, 8, 8]);
+  const o2 = P.slice(0, 2).find((p) => p.id !== c2).id;
   applyAction(g2, c2, { type: 'call' });
+  applyAction(g2, o2, { type: 'draw', from: 'deck' });
+  setHand(g2, c2, [2, 2, 2, 2, 2, 2]);
+  setHand(g2, o2, [1, 1, 1, 1, 1, 1]);
+  g2.turn.drawn = card(8);
+  applyAction(g2, o2, { type: 'reject' });
+  applyAction(g2, o2, { type: 'reveal', index: 0 });
+  assert.equal(g2.phase, 'roundEnd');
   assert.equal(g2.roundResult.callerFailed, true);
   assert.equal(g2.totals[c2], 24);
-  assert.equal(g2.totals[o2[0]], 6);
-  // Am Rundenende sieht jeder alles
-  assert.ok(viewFor(g2, o2[1]).players.every((p) => p.hand.every((s) => s.card)));
-  // Nächste Runde: wer die meisten Punkte hatte, beginnt (nach dem Ansehen)
+  assert.equal(g2.totals[o2], 6);
+  assert.ok(viewFor(g2, o2).players.every((p) => p.hand.every((s) => s.card)), 'am Ende sieht jeder alles');
   applyAction(g2, c2, { type: 'nextRound' });
   assert.equal(g2.round, 2);
-  assert.equal(g2.starter, o2[1]);
+  assert.equal(g2.starter, c2, 'meiste Punkte der Runde beginnt');
+
+  const g3 = createGame(P.slice(0, 2), {}, seeded(9));
+  readyAll(g3);
+  const c3 = g3.turn.player;
+  const o3 = P.slice(0, 2).find((p) => p.id !== c3).id;
+  applyAction(g3, c3, { type: 'call' });
+  applyAction(g3, o3, { type: 'draw', from: 'deck' });
+  setHand(g3, c3, [1, 1, 1, 1, 1, 1]);
+  setHand(g3, o3, [1, 1, 1, 1, 1, 1]);
+  g3.turn.drawn = card(8);
+  applyAction(g3, o3, { type: 'reject' });
+  applyAction(g3, o3, { type: 'reveal', index: 0 });
+  assert.equal(g3.roundResult.callerFailed, false, 'Gleichstand zählt als Erfolg');
+});
+
+test('Nur noch offene Karten: letzte Züge für alle anderen, dann Rundenende', () => {
+  const g = createGame(P, { short: true }, seeded());
+  readyAll(g);
+  const cur = g.turn.player;
+  g.hands[cur].forEach((s, i) => { s.up = i > 0; });
+  applyAction(g, cur, { type: 'draw', from: 'deck' });
+  applyAction(g, cur, { type: 'reject' });
+  applyAction(g, cur, { type: 'reveal', index: 0 });
+  assert.equal(g.phase, 'turn');
+  assert.deepEqual(g.final, { ender: cur, caller: null });
+  passTurn(g);
+  passTurn(g);
+  assert.equal(g.phase, 'roundEnd');
+  assert.equal(g.roundResult.callerFailed, false);
+});
+
+test('Ablehnen ohne verdeckte Karten beendet den Zug direkt', () => {
+  const g = createGame(P, {}, seeded());
+  readyAll(g);
+  const cur = g.turn.player;
+  applyAction(g, cur, { type: 'call' });
+  const p = g.turn.player;
+  g.hands[p].forEach((s) => { s.up = true; });
+  applyAction(g, p, { type: 'draw', from: 'deck' });
+  assert.throws(() => applyAction(g, p, { type: 'replace', index: 0 }), RuleError);
+  applyAction(g, p, { type: 'reject' });
+  assert.notEqual(g.turn?.player, p);
 });
 
 test('Rundenende wenn ein Spieler nur offene Karten hat; Spielende nach N Runden', () => {
@@ -247,10 +331,11 @@ test('Leerer Stapel wird aus der Ablage neu gemischt', () => {
   readyAll(g);
   const cur = g.turn.player;
   g.discard.push(...g.deck.splice(0));
-  const top = g.discard.at(-1);
+  const total = g.discard.length;
   applyAction(g, cur, { type: 'draw', from: 'deck' });
   assert.ok(g.turn.drawn);
-  assert.deepEqual(g.discard, [top]);
+  assert.equal(g.discard.length, 1, 'neue oberste Karte offen');
+  assert.equal(g.deck.length, total - 2);
 });
 
 test('Sicht ist JSON-serialisierbar und verrät keine fremden verdeckten Karten', () => {

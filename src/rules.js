@@ -118,6 +118,7 @@ function startRound(state, starter, rng) {
   state.private = {}; // pid -> { spy: {...} }
   state.roundResult = null;
   state.caller = null;
+  state.final = null; // { ender, caller } sobald die letzten Züge laufen
   log(state, `Runde ${state.round} beginnt. Schaut euch je ${CONFIG.peekCount} eurer Karten an!`);
 }
 
@@ -135,7 +136,7 @@ function cardLabel(card) {
 }
 
 function newTurn(state, pid, extraTurns = 0) {
-  state.turn = { player: pid, step: 'start', drawn: null, drawnFrom: null, extraTurns, setUsed: false };
+  state.turn = { player: pid, step: 'start', drawn: null, drawnFrom: null, extraTurns };
 }
 
 function nextPlayerId(state, pid) {
@@ -143,22 +144,32 @@ function nextPlayerId(state, pid) {
   return state.players[(i + 1) % state.players.length].id;
 }
 
+/** Zieht vom Nachziehstapel. Ist er leer, wird die ganze Ablage gemischt und die oberste Karte neu aufgedeckt. */
 function drawFromDeck(state, rng) {
   if (state.deck.length === 0) {
-    if (state.discard.length <= 1) return null;
-    const top = state.discard.pop();
+    if (state.discard.length === 0) return null;
     state.deck = shuffle(state.discard, rng);
-    state.discard = [top];
-    log(state, 'Der Nachziehstapel ist leer – die Ablage wird neu gemischt.');
+    state.discard = [];
+    if (state.deck.length > 1) state.discard.push(state.deck.pop());
+    log(state, 'Der Nachziehstapel ist leer – die Ablage wird gemischt und neu aufgedeckt.');
   }
-  return state.deck.pop();
+  return state.deck.pop() ?? null;
 }
 
 function hiddenIndex(hand, index, what = 'Karte') {
   const i = Number(index);
   if (!Number.isInteger(i) || i < 0 || i >= hand.length) fail(`Ungültige ${what}.`);
-  if (hand[i].up) fail('Diese Karte liegt schon offen.');
+  if (hand[i].up) fail('Diese Karte liegt offen und ist gesperrt.');
   return i;
+}
+
+const hasHidden = (hand) => hand.some((s) => !s.up);
+
+/** Prüft, ob die Karten ein gültiges Set zum Loswerden sind. */
+export function isValidSet(cards) {
+  if (cards.length >= CONFIG.setMinNumbers && cards.every((c) => c.kind === 'number' && c.value === cards[0].value)) return true;
+  if (cards.length >= CONFIG.setMinActions && cards.every((c) => c.kind === 'action' && c.action === cards[0].action)) return true;
+  return false;
 }
 
 // ---------------------------------------------------------------- Actions
@@ -200,7 +211,7 @@ export function applyAction(state, pid, action, rng = Math.random) {
   if (state.phase === 'roundEnd') {
     if (type !== 'nextRound') fail('Die Runde ist vorbei.');
     const last = state.history[state.history.length - 1];
-    // Wer die meisten Punkte in der Runde hatte, beginnt.
+    // Wer in der Runde die meisten Punkte hatte, beginnt.
     let starter = state.players[0].id;
     let max = -Infinity;
     for (const p of state.players) {
@@ -218,41 +229,13 @@ export function applyAction(state, pid, action, rng = Math.random) {
   const me = nameOf(state, pid);
 
   switch (t.step) {
-    case 'start':
-    case 'draw': {
+    case 'start': {
       if (type === 'call') {
-        if (t.step !== 'start') fail('Rufen geht nur zu Beginn deines Zuges.');
+        if (state.final) fail('Die Runde endet schon – jetzt sind die letzten Züge dran.');
         state.caller = pid;
-        log(state, `🔥 ${me} ruft „MAYHEM!“`);
-        endRound(state);
-        return state;
-      }
-      if (type === 'set') {
-        if (t.step !== 'start' || t.setUsed) fail('Gleiche Karten kannst du nur zu Beginn deines Zuges abwerfen.');
-        const idx = [...new Set((action.indices ?? []).map(Number))];
-        idx.forEach((i) => hiddenIndex(hand, i));
-        const cards = idx.map((i) => hand[i].card);
-        const allActions = cards.every((c) => c.kind === 'action');
-        const allNumbers = cards.every((c) => c.kind === 'number');
-        if (idx.length < Math.min(CONFIG.setMinActions, CONFIG.setMinNumbers)) fail('Wähle mindestens 2 Karten aus.');
-        const drawn = drawFromDeck(state, rng);
-        if (!drawn) fail('Es gibt keine Karten mehr zum Ziehen.');
-        const valid =
-          (allActions && idx.length >= CONFIG.setMinActions) ||
-          (allNumbers && idx.length >= CONFIG.setMinNumbers && cards.every((c) => c.value === cards[0].value));
-        const shown = cards.map(cardLabel).join(', ');
-        if (valid) {
-          // Karten entfernen (absteigend, damit Indizes stimmen)
-          [...idx].sort((a, b) => b - a).forEach((i) => hand.splice(i, 1));
-          cards.forEach((c) => state.discard.push(c));
-          hand.push({ card: drawn, up: false });
-          log(state, `✨ ${me} wirft ${idx.length} gleiche Karten ab: ${shown}. Eine neue Karte kommt verdeckt dazu.`);
-        } else {
-          hand.push({ card: drawn, up: false });
-          log(state, `😬 ${me} wollte abwerfen, aber die Karten passen nicht: ${shown}. Strafe: eine Karte mehr!`);
-        }
-        t.setUsed = true;
-        t.step = 'draw';
+        state.final = { ender: pid, caller: pid };
+        log(state, `🔥 ${me} ruft „MAYHEM!“ – alle anderen haben noch einen letzten Zug.`);
+        endTurn(state, { noExtra: true });
         return state;
       }
       if (type === 'draw') {
@@ -286,15 +269,35 @@ export function applyAction(state, pid, action, rng = Math.random) {
         state.discard.push(old);
         log(state, `${me} tauscht Karte ${i + 1} aus – weg ist ${cardLabel(old)}.`);
         t.drawn = null;
-        t.step = 'reveal';
+        endTurn(state);
+        return state;
+      }
+      if (type === 'set') {
+        const idx = [...new Set((action.indices ?? []).map(Number))];
+        if (idx.length < Math.min(CONFIG.setMinActions, CONFIG.setMinNumbers)) fail('Wähle mindestens 2 Karten aus.');
+        idx.forEach((i) => hiddenIndex(hand, i));
+        const cards = idx.map((i) => hand[i].card);
+        const shown = cards.map(cardLabel).join(', ');
+        if (isValidSet(cards)) {
+          [...idx].sort((a, b) => b - a).forEach((i) => hand.splice(i, 1)); // absteigend, damit Indizes stimmen
+          cards.forEach((c) => state.discard.push(c));
+          hand.push({ card: t.drawn, up: false });
+          log(state, `✨ ${me} wird ${idx.length} gleiche Karten los: ${shown}. Die neue Karte kommt verdeckt dazu.`);
+        } else {
+          hand.push({ card: t.drawn, up: false });
+          log(state, `😬 ${me} wollte Karten loswerden, aber sie passen nicht: ${shown}. Die neue Karte bleibt als Strafkarte liegen!`);
+        }
+        t.drawn = null;
+        endTurn(state);
         return state;
       }
       if (type === 'reject') {
         if (t.drawnFrom === 'discard') fail('Eine Karte von der Ablage musst du gegen eine eigene tauschen.');
         state.discard.push(t.drawn);
-        log(state, `${me} legt ${cardLabel(t.drawn)} ab.`);
+        log(state, `${me} lehnt ${cardLabel(t.drawn)} ab.`);
         t.drawn = null;
-        t.step = 'reveal';
+        if (hasHidden(hand)) t.step = 'reveal';
+        else endTurn(state);
         return state;
       }
       if (type === 'useAction') {
@@ -305,20 +308,21 @@ export function applyAction(state, pid, action, rng = Math.random) {
           t.step = 'spy';
           log(state, `👀 ${me} spielt „Spicken“.`);
         } else if (a === 'swap') {
-          const others = state.players.filter((p) => p.id !== pid && state.hands[p.id].some((s) => !s.up));
+          if (!hasHidden(hand)) fail('Du hast keine verdeckte Karte mehr zum Tauschen.');
+          const others = state.players.filter((p) => p.id !== pid && hasHidden(state.hands[p.id]));
           if (others.length === 0) fail('Niemand hat noch verdeckte Karten zum Tauschen.');
           t.step = 'swap';
           log(state, `🔄 ${me} spielt „Tauschen“.`);
         } else if (a === 'again') {
-          t.extraTurns += CONFIG.extraTurnsForAgain;
           state.discard.push(t.drawn);
           t.drawn = null;
-          t.step = 'reveal';
+          t.extraTurns += CONFIG.extraTurnsForAgain;
           log(state, `⏩ ${me} spielt „Nochmal!“ und bekommt ${CONFIG.extraTurnsForAgain} Extra-Züge.`);
+          endTurn(state);
         }
         return state;
       }
-      fail('Tausche die Karte, lege sie ab oder nutze die Aktion.');
+      fail('Tausche die Karte, lehne sie ab oder nutze die Aktion.');
     }
 
     case 'spy': {
@@ -339,7 +343,7 @@ export function applyAction(state, pid, action, rng = Math.random) {
     case 'spyResult': {
       if (type !== 'ack') fail('Bestätige zuerst, dass du die Karte gesehen hast.');
       delete state.private[pid];
-      t.step = 'reveal';
+      endTurn(state);
       return state;
     }
 
@@ -354,8 +358,8 @@ export function applyAction(state, pid, action, rng = Math.random) {
       hand[mi] = theirs;
       state.discard.push(t.drawn);
       t.drawn = null;
-      t.step = 'reveal';
       log(state, `${me} tauscht die eigene Karte ${mi + 1} mit Karte ${ti + 1} von ${nameOf(state, target)}.`);
+      endTurn(state);
       return state;
     }
 
@@ -363,28 +367,38 @@ export function applyAction(state, pid, action, rng = Math.random) {
       if (type !== 'reveal') fail('Decke jetzt eine deiner verdeckten Karten auf.');
       const i = hiddenIndex(hand, action.index);
       hand[i].up = true;
-      log(state, `${me} deckt ${cardLabel(hand[i].card)} auf.`);
-      advance(state);
+      log(state, `${me} deckt ${cardLabel(hand[i].card)} auf – sie ist jetzt gesperrt.`);
+      if (!state.final && !hasHidden(hand)) {
+        state.final = { ender: pid, caller: null };
+        log(state, `${me} hat nur noch offene Karten – alle anderen haben noch einen letzten Zug.`);
+        endTurn(state, { noExtra: true });
+        return state;
+      }
+      endTurn(state);
       return state;
     }
   }
   fail('Unbekannte Aktion.');
 }
 
-function advance(state) {
+/**
+ * Beendet den aktuellen Zug: erst Extra-Züge, sonst der nächste Spieler.
+ * Laufen die letzten Züge und wäre wieder der Auslöser dran, endet die Runde.
+ */
+function endTurn(state, { noExtra = false } = {}) {
   const t = state.turn;
-  const done = state.players.find((p) => state.hands[p.id].every((s) => s.up));
-  if (done) {
-    log(state, `${nameOf(state, done.id)} hat nur noch offene Karten – Rundenende!`);
+  if (!noExtra && t.extraTurns > 0) {
+    newTurn(state, t.player, t.extraTurns - 1);
+    log(state, `${nameOf(state, t.player)} ist nochmal dran (Extra-Zug).`);
+    return;
+  }
+  const next = nextPlayerId(state, t.player);
+  if (state.final && next === state.final.ender) {
     endRound(state);
     return;
   }
-  if (t.extraTurns > 0) {
-    newTurn(state, t.player, t.extraTurns - 1);
-    log(state, `${nameOf(state, t.player)} ist nochmal dran (Extra-Zug).`);
-  } else {
-    newTurn(state, nextPlayerId(state, t.player));
-  }
+  newTurn(state, next);
+  if (state.final) log(state, `Letzter Zug für ${nameOf(state, next)}.`);
 }
 
 /** Host-Notfall: Zug eines (offline) Spielers überspringen bzw. ihn in der Ansehen-Phase auf „bereit“ setzen. */
@@ -392,7 +406,7 @@ export function skipPlayer(state, pid) {
   if (!hasPlayer(state, pid)) fail('Unbekannter Spieler.');
   if (state.phase === 'peek') {
     const pk = state.peek[pid];
-    if (!pk || pk.ready) fail('Dieser Spieler ist schon bereit.');
+    if (pk.ready) fail('Dieser Spieler ist schon bereit.');
     pk.ready = true;
     log(state, `${nameOf(state, pid)} wird übersprungen (offline).`);
     if (Object.values(state.peek).every((p) => p.ready)) {
@@ -407,7 +421,7 @@ export function skipPlayer(state, pid) {
   if (t.drawn) { state.discard.push(t.drawn); t.drawn = null; }
   delete state.private[pid];
   log(state, `Der Zug von ${nameOf(state, pid)} wird übersprungen (offline).`);
-  newTurn(state, nextPlayerId(state, pid));
+  endTurn(state, { noExtra: true });
   return state;
 }
 
@@ -486,7 +500,6 @@ export function viewFor(state, pid) {
       player: t.player,
       step: t.step,
       extraTurns: t.extraTurns,
-      setUsed: t.setUsed,
       drawnFrom: t.drawnFrom,
       hasDrawn: !!t.drawn,
       // Karte vom Nachziehstapel sieht nur der Ziehende; Ablagekarte war ohnehin öffentlich.
@@ -510,6 +523,7 @@ export function viewFor(state, pid) {
     roundResult: state.roundResult,
     history: state.history,
     caller: state.caller,
+    final: state.final,
     winners: state.winners ?? null,
     log: state.log.slice(-30),
   };

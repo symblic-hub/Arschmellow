@@ -51,6 +51,37 @@ function check(cond, msg) {
   console.log('  ✔', msg);
 }
 
+
+let spyShot = false;
+async function playUntilRoundEnd(host, pageOf) {
+  let guard = 0;
+  while (guard++ < 300) {
+    const v = await view(host);
+    if (v.game.phase !== 'turn') return;
+    const t = v.game.turn;
+    const p = pageOf[t.player];
+    const pv = await view(p);
+    const mine = pv.game.players.find((x) => x.id === pv.game.me);
+    const hidden = mine.hand.findIndex((s) => !s.up);
+    if (t.step === 'start') await act(p, { type: 'draw', from: 'deck' });
+    else if (t.step === 'decide') {
+      const d = pv.game.turn.drawn;
+      if (d.kind === 'action' && d.action === 'spy') await act(p, { type: 'useAction' });
+      else await act(p, { type: 'reject' });
+    } else if (t.step === 'spy') {
+      const other = pv.game.players.find((x) => x.id !== pv.game.me && x.hand.some((s) => !s.up));
+      if (!other) { await act(p, { type: 'spy', target: pv.game.me, index: hidden }); }
+      else await act(p, { type: 'spy', target: other.id, index: other.hand.findIndex((s) => !s.up) });
+      await p.waitForSelector('.modal:not([hidden]) [data-act=ack]');
+      if (!spyShot) { spyShot = true; await p.screenshot({ path: path.join(shotDir, '4-spy.png') }); }
+      await p.click('[data-act=ack]');
+    } else if (t.step === 'reveal') await act(p, { type: 'reveal', index: hidden });
+    else throw new Error('Unerwarteter Schritt ' + t.step);
+    await settle(120);
+  }
+  throw new Error('Runde endet nicht');
+}
+
 const view = (p) => p.evaluate(() => window.mm.view);
 const act = (p, a) => p.evaluate((a) => window.mm.act(a), a);
 const settle = (ms = 250) => new Promise((r) => setTimeout(r, ms));
@@ -114,37 +145,24 @@ try {
   await cur.click('[data-pile=deck]');
   await cur.waitForSelector('.pile.drawn');
   await cur.screenshot({ path: path.join(shotDir, '3-drawn.png') });
-  await cur.click('#myhand .slot.clickable >> nth=0'); // ersetzen
-  await cur.waitForFunction(() => window.mm.view.game.turn.step === 'reveal');
-  await cur.click('#myhand .slot.clickable >> nth=0'); // aufdecken
+  await cur.click('#myhand .slot.clickable >> nth=0'); // tauschen → Zug vorbei
   await host.waitForFunction((pid) => window.mm.view.game.turn?.player !== pid, v.game.turn.player);
-  check(true, 'Zug per Klick: ziehen → tauschen → aufdecken');
+  check((await view(cur)).game.players.find((x) => x.id === v.game.turn.player).hand.every((s) => !s.up),
+    'Zug per Klick: ziehen → tauschen → nächster Spieler (ohne Aufdecken)');
+
+  // Zweiter Zug per Klick: ablehnen → aufdecken
+  v = await view(host);
+  cur = pageOf[v.game.turn.player];
+  await cur.click('[data-pile=deck]');
+  await cur.waitForSelector('[data-act=reject]');
+  await cur.click('[data-act=reject]');
+  await cur.waitForFunction(() => window.mm.view.game.turn.step === 'reveal');
+  await cur.click('#myhand .slot.clickable >> nth=0');
+  await host.waitForFunction((pid) => window.mm.view.game.turn?.player !== pid, v.game.turn.player);
+  check(true, 'Zug per Klick: ziehen → ablehnen → aufdecken');
 
   // Restliche Züge automatisch, bis Rundenende
-  let guard = 0;
-  while (guard++ < 200) {
-    v = await view(host);
-    if (v.game.phase !== 'turn') break;
-    const t = v.game.turn;
-    const p = pageOf[t.player];
-    const pv = await view(p);
-    const mine = pv.game.players.find((x) => x.id === pv.game.me);
-    const hidden = mine.hand.findIndex((s) => !s.up);
-    if (t.step === 'start' || t.step === 'draw') await act(p, { type: 'draw', from: 'deck' });
-    else if (t.step === 'decide') {
-      if (pv.game.turn.drawn.kind === 'action' && pv.game.turn.drawn.action === 'spy') await act(p, { type: 'useAction' });
-      else await act(p, { type: 'reject' });
-    } else if (t.step === 'spy') {
-      const other = pv.game.players.find((x) => x.id !== pv.game.me);
-      const oi = other.hand.findIndex((s) => !s.up);
-      await act(p, { type: 'spy', target: other.id, index: oi });
-      await p.waitForSelector('.modal:not([hidden]) [data-act=ack]');
-      await p.screenshot({ path: path.join(shotDir, '4-spy.png') });
-      await p.click('[data-act=ack]');
-    } else if (t.step === 'reveal') await act(p, { type: 'reveal', index: hidden });
-    else throw new Error('Unerwarteter Schritt ' + t.step);
-    await settle(120);
-  }
+  await playUntilRoundEnd(host, pageOf);
   await host.waitForSelector('.modal:not([hidden]) .results');
   v = await view(host);
   check(v.game.phase === 'roundEnd', 'Runde 1 beendet');
@@ -173,6 +191,11 @@ try {
   const caller = (await byId())[v.game.turn.player];
   caller.on('dialog', (d) => d.accept());
   await caller.click('[data-act=call]');
+  await host.waitForFunction(() => window.mm.view.game.final);
+  await pages[0].waitForSelector('.final-banner');
+  await host.screenshot({ path: path.join(shotDir, '6a-final-turns.png') });
+  check(true, 'Nach MAYHEM laufen die letzten Züge');
+  await playUntilRoundEnd(host, await byId());
   await host.waitForFunction(() => window.mm.view.game.phase === 'roundEnd');
   v = await view(host);
   check(v.game.roundResult.caller === (await view(caller)).game.me, 'Mayhem-Ruf beendet Runde 2');

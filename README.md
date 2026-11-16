@@ -30,21 +30,26 @@ Wer den Raum erstellt, ist **Host**: Bei ihm läuft das Spiel. Lässt er den Tab
 
 ## Regeln (Kurzfassung)
 
-- Jeder hat **6 verdeckte Karten** (kurzes Spiel: 4) und darf sich zu Rundenbeginn **2 davon einmal ansehen**.
-- **Dein Zug:** Karte vom Stapel ziehen *oder* die oberste Ablagekarte nehmen →
-  **tauschen** (blind gegen eine eigene verdeckte Karte), **ablegen** (nur Stapelkarten) oder **Aktion nutzen** (nur Aktionskarten vom Stapel) →
-  zum Schluss **immer eine eigene verdeckte Karte aufdecken**. Offene Karten bleiben fix.
+Nach der Original-Spielanleitung von „Arschmallows“ – unter eigenem Namen und mit eigenen Karten.
+
+- Jeder hat **6 verdeckte Karten** (Kindermodus: 4) und darf sich zu Rundenbeginn **2 davon einmal ansehen**.
+- **Dein Zug:** Karte vom Nachziehstapel ziehen *oder* die oberste Ablagekarte nehmen, dann:
+  1. **Tauschen** – verdeckt gegen eine eigene verdeckte Karte, die alte kommt offen auf die Ablage. Zug vorbei.
+  2. **Ablehnen** (nur Stapelkarten) – Karte ablegen und dafür eine eigene verdeckte Karte **aufdecken**; sie ist dann **gesperrt**.
+  3. **Aktion** (nur Aktionskarten vom Stapel) – danach ist der Zug vorbei (kein Tauschen, kein Aufdecken).
 - **Aktionskarten** (zählen am Ende ihren Wert!):
   👀 *Spicken* (9) – beliebige verdeckte Karte ansehen ·
-  🔄 *Tauschen* (10) – eigene verdeckte Karte blind mit der eines Mitspielers tauschen ·
+  🔄 *Tauschen* (10) – eigene verdeckte Karte mit der verdeckten Karte eines Mitspielers tauschen ·
   ⏩ *Nochmal!* (11) – zwei weitere Züge.
-- **Gleiche abwerfen:** Zu Beginn deines Zuges 3+ gleiche Zahlenkarten oder 2+ Aktionskarten (verdeckt) abwerfen;
-  du ziehst dafür eine Karte verdeckt nach. Passen sie nicht: Karten bleiben liegen **plus** Strafkarte.
-- **Rundenende:** Jemand hat nur noch offene Karten – oder jemand ruft zu Beginn seines Zuges **„MAYHEM!“**.
-  Hat der Rufer nicht die niedrigste Summe (Gleichstand zählt für ihn), werden seine Punkte **verdoppelt**.
+- **Karten loswerden:** 3+ gleiche Zahlenkarten oder 2 gleiche Aktionskarten (verdeckt) alle gegen die aufgenommene Karte
+  tauschen. Liegst du falsch, bleiben sie liegen und die neue Karte kommt als **Strafkarte** dazu.
+- **Rundenende:** Jemand ruft zu Beginn seines Zuges **„MAYHEM!“** – oder hat nur noch offene Karten.
+  Danach hat **jeder andere noch einen letzten Zug**. Hat der Rufer nicht die niedrigste Summe (Gleichstand zählt für ihn),
+  werden seine Punkte **verdoppelt**.
 - Nach **6 Runden** gewinnt die niedrigste Gesamtsumme. Wer in einer Runde die meisten Punkte hatte, beginnt die nächste.
+- Ist der Nachziehstapel leer, wird die Ablage gemischt und die oberste Karte neu aufgedeckt.
 
-**Deck (62 Karten):** Zahlen 0–8 je 5×, *Goldener Mallow* (−3) 1×, *Mallow-König* (−5) 1×, je 5 Aktionskarten.
+**Deck (62 Karten, Verteilung angenommen):** Zahlen 0–8 je 5×, *Goldener Mallow* (−3) 1×, *Mallow-König* (−5) 1×, je 5 Aktionskarten.
 Alle Werte lassen sich in `src/rules.js` → `CONFIG` anpassen.
 
 ## Veröffentlichen (GitHub Pages)

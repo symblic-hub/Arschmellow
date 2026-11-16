@@ -295,12 +295,11 @@ function stepText(g, p) {
   const n = esc(p?.name);
   switch (t.step) {
     case 'start': return `${n} ist am Zug.`;
-    case 'draw': return `${n} zieht eine Karte.`;
-    case 'decide': return t.drawnFrom === 'discard' ? `${n} hat die Ablagekarte genommen …` : `${n} überlegt, was mit der gezogenen Karte passiert …`;
+    case 'decide': return t.drawnFrom === 'discard' ? `${n} hat die Ablagekarte genommen und überlegt …` : `${n} überlegt, was mit der gezogenen Karte passiert …`;
     case 'spy': return `${n} sucht sich eine Karte zum Spicken aus …`;
     case 'spyResult': return `${n} spickt …`;
     case 'swap': return `${n} sucht zwei Karten zum Tauschen aus …`;
-    case 'reveal': return `${n} muss eine Karte aufdecken.`;
+    case 'reveal': return `${n} hat abgelehnt und muss eine Karte aufdecken.`;
     default: return '';
   }
 }
@@ -335,6 +334,7 @@ function renderGame(view) {
         <span class="avatar">${esc(p.name.slice(0, 1).toUpperCase())}</span>
         <span class="pname">${esc(p.name)}</span>
         ${active ? '<span class="badge turn">am Zug</span>' : ''}
+        ${g.final?.caller === p.id ? '<span class="badge call">🔥 gerufen</span>' : ''}
         ${g.phase === 'peek' ? (p.ready ? '<span class="badge ok">bereit</span>' : '<span class="badge">merkt sich …</span>') : ''}
         ${connected[p.id] === false ? '<span class="badge off">offline</span>' : ''}
         ${r.isHost && connected[p.id] === false && (active || (g.phase === 'peek' && !p.ready))
@@ -349,7 +349,7 @@ function renderGame(view) {
   }).join('');
 
   // Mitte: Stapel
-  const canDraw = myTurn && (step === 'start' || step === 'draw') && sel.mode !== 'set';
+  const canDraw = myTurn && step === 'start';
   const deckEl = `<${canDraw ? 'button' : 'div'} class="pile deck ${canDraw ? 'clickable' : ''}" ${canDraw ? 'data-pile="deck"' : ''}>
       ${cardBack()}<span class="pile-label">Stapel · ${num(g.deckCount)}</span></${canDraw ? 'button' : 'div'}>`;
   const canDiscard = canDraw && g.discardTop;
@@ -379,26 +379,25 @@ function renderGame(view) {
     if (!myTurn) {
       prompt = stepText(g, curPlayer);
     } else if (sel.mode === 'set') {
-      prompt = 'Markiere deine <b>verdeckten</b> Karten: mind. 3 gleiche Zahlen oder mind. 2 Aktionskarten. Liegst du falsch, bekommst du eine Strafkarte!';
-      buttons = `<button class="primary" data-act="set-confirm" ${sel.set.length >= 2 ? '' : 'disabled'}>Abwerfen (${sel.set.length})</button>
+      prompt = 'Markiere deine <b>verdeckten</b> Karten: mind. <b>3 gleiche Zahlenkarten</b> oder <b>2 gleiche Aktionskarten</b>. Sie werden alle gegen deine neue Karte getauscht. Liegst du falsch, bleibt die neue Karte als <b>Strafkarte</b> liegen!';
+      buttons = `<button class="primary" data-act="set-confirm" ${sel.set.length >= 2 ? '' : 'disabled'}>Loswerden (${num(sel.set.length)})</button>
         <button class="ghost" data-ui="set-cancel">Abbrechen</button>`;
-    } else if (step === 'start' || step === 'draw') {
-      prompt = step === 'start'
-        ? `<b>Du bist dran${t.extraTurns ? ` (noch ${num(t.extraTurns)} Extra-Zug${t.extraTurns > 1 ? 'züge' : ''} danach)` : ''}!</b> Zieh vom Stapel oder nimm die Ablagekarte.`
-        : 'Zieh jetzt eine Karte vom Stapel oder nimm die Ablagekarte.';
-      if (step === 'start') {
-        buttons = `<button class="mayhem" data-act="call">🔥 MAYHEM! rufen</button>
-          ${t.setUsed ? '' : '<button class="ghost" data-ui="set-mode">Gleiche abwerfen …</button>'}`;
-      }
+    } else if (step === 'start') {
+      prompt = `<b>Du bist dran${t.extraTurns ? ` (danach noch ${num(t.extraTurns)} Extra-Zug${t.extraTurns > 1 ? 'züge' : ''})` : ''}!</b> Zieh vom Stapel oder nimm die Ablagekarte.`;
+      if (!g.final) prompt += ' Oder ruf <b>„MAYHEM!“</b>, wenn du glaubst, die wenigsten Punkte zu haben.';
+      buttons = g.final ? '' : '<button class="mayhem" data-act="call">🔥 MAYHEM! rufen</button>';
     } else if (step === 'decide') {
       const d = t.drawn;
       const canAction = d && d.kind === 'action' && t.drawnFrom === 'deck';
-      prompt = t.drawnFrom === 'discard'
-        ? 'Klicke eine deiner <b>verdeckten</b> Karten an, um sie (blind) zu ersetzen.'
-        : 'Klicke eine deiner <b>verdeckten</b> Karten zum Tauschen an – oder lege die Karte ab.';
+      const hasHiddenCards = me.hand.some((s) => !s.up);
+      prompt = hasHiddenCards
+        ? 'Klicke eine deiner <b>verdeckten</b> Karten an, um sie (blind) gegen die neue Karte zu tauschen.'
+        : 'Du hast keine verdeckten Karten mehr.';
+      if (t.drawnFrom === 'deck') prompt += ' Oder lehne sie ab – dann musst du eine Karte aufdecken.';
       if (canAction) prompt += ` Oder nutze die Aktion: <i>${esc(ACTION_META[d.action]?.hint)}</i>.`;
       buttons = `${canAction ? `<button class="primary" data-act="useAction">${ACTION_META[d.action].icon} ${esc(d.name)} ausführen</button>` : ''}
-        ${t.drawnFrom === 'deck' ? '<button class="ghost" data-act="reject">Ablegen</button>' : ''}`;
+        ${t.drawnFrom === 'deck' ? `<button class="ghost" data-act="reject">${hasHiddenCards ? 'Ablehnen &amp; aufdecken' : 'Ablehnen'}</button>` : ''}
+        ${hasHiddenCards ? '<button class="ghost" data-ui="set-mode">Mehrere gleiche loswerden …</button>' : ''}`;
     } else if (step === 'spy') {
       prompt = '👀 Klicke eine <b>beliebige verdeckte</b> Karte an (deine oder die eines Mitspielers).';
     } else if (step === 'swap') {
@@ -406,10 +405,15 @@ function renderGame(view) {
     } else if (step === 'spyResult') {
       prompt = 'Merk dir die Karte!';
     } else if (step === 'reveal') {
-      prompt = '<b>Zum Schluss:</b> Decke eine deiner verdeckten Karten auf.';
+      prompt = 'Du hast abgelehnt – <b>decke jetzt eine deiner verdeckten Karten auf</b>. Sie ist dann bis zum Rundenende gesperrt.';
     }
   }
-  $('#prompt').innerHTML = `<div class="prompt-text">${prompt}</div><div class="prompt-buttons">${buttons}</div>`;
+  let banner = '';
+  if (g.final && g.phase === 'turn') {
+    const ender = g.players.find((p) => p.id === g.final.ender);
+    banner = `<div class="final-banner">⏳ <b>Letzte Züge!</b> ${esc(ender?.name)} ${g.final.caller ? 'hat „MAYHEM!“ gerufen' : 'hat nur noch offene Karten'} – alle anderen haben noch einen Zug.</div>`;
+  }
+  $('#prompt').innerHTML = `${banner}<div class="prompt-text">${prompt}</div><div class="prompt-buttons">${buttons}</div>`;
   $('#prompt').classList.toggle('mine', !!myTurn || (g.phase === 'peek' && !g.peek.ready));
 
   // Letzte Aktion
@@ -424,6 +428,7 @@ function renderGame(view) {
   </div>`;
   $('#myinfo').innerHTML = `<span class="avatar">${esc(me.name.slice(0, 1).toUpperCase())}</span>
     <span class="pname">${esc(me.name)}</span> ${myTurn ? '<span class="badge turn">am Zug</span>' : ''}
+    ${g.final?.caller === g.me ? '<span class="badge call">🔥 gerufen</span>' : ''}
     <span class="muted">Gesamt: <b>${num(me.total)}</b> · offen: ${num(me.openSum)}</span>`;
   $('#mine').classList.toggle('active', !!myTurn);
 
@@ -509,31 +514,28 @@ function roundEndHTML(view) {
 
 const RULES_HTML = `
 <h2>So wird gespielt</h2>
-<p><b>Ziel:</b> Möglichst <b>wenige Punkte</b> sammeln. Nach allen Runden gewinnt die niedrigste Gesamtsumme.</p>
-<h3>Aufbau</h3>
-<p>Jeder bekommt 6 verdeckte Karten (kurzes Spiel: 4). Zu Beginn jeder Runde darfst du dir <b>2 davon einmal ansehen</b> – merk sie dir!</p>
+<p><b>Ziel:</b> Möglichst <b>wenige Punkte</b> sammeln. Nach 6 Runden gewinnt die niedrigste Gesamtsumme.</p>
+<h3>Vorbereitung</h3>
+<p>Jeder bekommt 6 verdeckte Karten (Kindermodus: 4). Zu Beginn der Runde darfst du dir <b>einmalig 2 davon ansehen</b> – danach nicht mehr!</p>
 <h3>Dein Zug</h3>
+<p>Zieh eine Karte vom <b>Nachziehstapel</b> (nur du siehst sie) <i>oder</i> nimm die oberste <b>Ablagekarte</b>. Dann:</p>
 <ol>
-  <li><b>Karte nehmen:</b> vom Stapel ziehen (nur du siehst sie) oder die oberste Ablagekarte nehmen.</li>
-  <li><b>Entscheiden:</b>
-    <ul>
-      <li><b>Tauschen:</b> Die Karte ersetzt <i>blind</i> eine deiner verdeckten Karten. Die alte Karte kommt offen auf die Ablage.</li>
-      <li><b>Ablegen:</b> Karte auf die Ablage (nur bei Karten vom Stapel).</li>
-      <li><b>Aktion:</b> Nur wenn du eine Aktionskarte <i>vom Stapel</i> gezogen hast.</li>
-    </ul></li>
-  <li><b>Aufdecken:</b> Zum Schluss musst du immer eine deiner verdeckten Karten umdrehen. Offene Karten bleiben liegen und können nicht mehr getauscht werden.</li>
+  <li><b>Tauschen:</b> Die neue Karte ersetzt (verdeckt) eine deiner verdeckten Karten. Die alte kommt offen auf die Ablage. Zug vorbei.</li>
+  <li><b>Ablehnen:</b> Die Karte kommt auf die Ablage – dafür musst du eine deiner verdeckten Karten <b>aufdecken</b>. Sie ist dann <b>gesperrt</b> und kann nicht mehr getauscht werden.</li>
+  <li><b>Aktion:</b> Nur wenn du eine Aktionskarte <i>vom Nachziehstapel</i> gezogen hast. Danach ist dein Zug vorbei (kein Tauschen, kein Aufdecken).</li>
 </ol>
 <h3>Aktionskarten</h3>
 <ul>
-  <li>👀 <b>Spicken (9):</b> Sieh dir eine beliebige verdeckte Karte an – auch eine eigene.</li>
-  <li>🔄 <b>Tauschen (10):</b> Tausche blind eine deiner verdeckten Karten mit einer verdeckten Karte eines Mitspielers.</li>
-  <li>⏩ <b>Nochmal! (11):</b> Du machst danach zwei weitere Züge.</li>
+  <li>👀 <b>Spicken (9):</b> Sieh dir eine beliebige verdeckte Karte an – deine oder die eines Mitspielers.</li>
+  <li>🔄 <b>Tauschen (10):</b> Tausche eine deiner verdeckten Karten mit einer verdeckten Karte eines Mitspielers. Gesperrte Karten nicht.</li>
+  <li>⏩ <b>Nochmal! (11):</b> Du machst zwei weitere Züge.</li>
 </ul>
 <p>Aktionskarten, die am Ende vor dir liegen, zählen ihren Wert!</p>
-<h3>Gleiche abwerfen</h3>
-<p>Zu Beginn deines Zuges darfst du <b>3+ gleiche Zahlenkarten</b> oder <b>2+ Aktionskarten</b> aus deinen <i>verdeckten</i> Karten abwerfen. Du ziehst dafür eine Karte und legst sie verdeckt zu dir. Passen die Karten nicht zusammen, behältst du sie <b>und</b> die neue Karte.</p>
-<h3>Rundenende</h3>
-<p>Die Runde endet, wenn jemand nur noch offene Karten hat – oder wenn jemand zu Beginn seines Zuges <b>„MAYHEM!“</b> ruft. Dann wird alles aufgedeckt und gezählt. Hat der Rufer nicht die niedrigste Summe (Gleichstand zählt für ihn), werden seine Punkte <b>verdoppelt</b>.</p>
+<h3>Karten loswerden</h3>
+<p>Hast du <b>3 oder mehr gleiche Zahlenkarten</b> (oder <b>2 gleiche Aktionskarten</b>) verdeckt vor dir, kannst du sie alle gegen die aufgenommene Karte tauschen – so hast du weniger Karten. Irrst du dich, bleiben sie liegen und die neue Karte kommt als <b>Strafkarte</b> dazu.</p>
+<h3>Runde beenden</h3>
+<p>Glaubst du, die wenigsten Punkte zu haben, ruf zu Beginn deines Zuges <b>„MAYHEM!“</b>. Die Runde endet auch, wenn jemand nur noch offene Karten hat. Danach hat <b>jeder andere noch einen letzten Zug</b>. Dann wird alles aufgedeckt und gezählt.</p>
+<p>Hat der Rufer nicht die niedrigste Summe (Gleichstand zählt für ihn), werden seine Punkte <b>verdoppelt</b>. Wer in der Runde die meisten Punkte hatte, beginnt die nächste.</p>
 <h3>Karten</h3>
-<p>Zahlenkarten 0–8 (je 5×), zwei Minuskarten: <b>Goldener Mallow (−3)</b> und <b>Mallow-König (−5)</b>, sowie je 5 Aktionskarten.</p>
+<p>Zahlenkarten 0–8, zwei Minuskarten – <b>Goldener Mallow (−3)</b> und <b>Mallow-König (−5)</b> – sowie Aktionskarten.</p>
 <button class="primary" data-ui="close-modal">Los geht's!</button>`;
