@@ -1,7 +1,7 @@
 // Verbindung zum Spielserver (Cloudflare Worker) per WebSocket.
 
 // Der Spielserver. Für lokale Tests: ?server=ws://127.0.0.1:8787 (nur localhost erlaubt).
-const DEFAULT_SERVER = 'wss://marshmellow-mayhem.nicolasfortune13.workers.dev';
+const DEFAULT_SERVER = 'wss://marshmellow-mayhem.jonas-260412.workers.dev';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 

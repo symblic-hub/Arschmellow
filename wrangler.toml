@@ -2,6 +2,7 @@ name = "marshmellow-mayhem"
 main = "server/worker.js"
 compatibility_date = "2026-11-01"
 workers_dev = true
+preview_urls = false
 
 [vars]
 # Erlaubte Herkünfte der Spielseite (kommagetrennt); "localhost" erlaubt lokale Tests.
