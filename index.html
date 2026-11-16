@@ -9,7 +9,6 @@
   <link rel="apple-touch-icon" href="assets/icon-square.png">
   <meta property="og:image" content="assets/icon.png">
   <link rel="stylesheet" href="style.css">
-  <script src="vendor/peerjs.min.js"></script>
   <script type="module" src="src/main.js"></script>
 </head>
 <body>
@@ -26,10 +25,6 @@
       <label class="field">Dein Name
         <input id="name" maxlength="20" autocomplete="nickname" placeholder="z. B. Toni">
       </label>
-      <div id="resume" class="resume" hidden>
-        <span>Dein Raum <b id="resume-code"></b> ist noch gespeichert.</span>
-        <button data-ui="resume">Fortsetzen</button>
-      </div>
       <form id="create-form">
         <button class="big primary" type="submit">Neuen Raum erstellen</button>
       </form>

@@ -1,0 +1,16 @@
+name = "marshmellow-mayhem"
+main = "server/worker.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[vars]
+# Erlaubte Herkünfte der Spielseite (kommagetrennt); "localhost" erlaubt lokale Tests.
+ALLOWED_ORIGINS = "https://symblic-hub.github.io,localhost"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

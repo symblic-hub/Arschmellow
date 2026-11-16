@@ -104,11 +104,6 @@ export function init(h) {
     if (!code) return toast('Gib den Raumcode ein.', 'error');
     handlers.join(code, name);
   });
-  if (h.resumeCode) {
-    const box = $('#resume');
-    box.hidden = false;
-    $('#resume-code').textContent = h.resumeCode;
-  }
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
   });
@@ -215,7 +210,6 @@ function uiAction(what, btn) {
     navigator.clipboard?.writeText(link).then(() => toast('Einladungslink kopiert! 📋'), () => prompt('Link kopieren:', link));
     return;
   }
-  if (what === 'resume') return handlers.resume();
   if (what === 'leave') {
     if (confirm('Raum wirklich verlassen?')) handlers.leave();
   }
@@ -244,7 +238,7 @@ function inviteLink(code) {
   const u = new URL(location.href);
   u.search = '';
   const q = new URLSearchParams(location.search);
-  for (const k of ['peerHost', 'peerPort', 'peerPath', 'peerSecure']) if (q.get(k)) u.searchParams.set(k, q.get(k));
+  if (q.get('server')) u.searchParams.set('server', q.get('server'));
   u.searchParams.set('join', code);
   return u.toString();
 }

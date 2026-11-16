@@ -82,7 +82,6 @@ h1 span, .brand span { color: var(--pink); }
 .join-row input { text-transform: uppercase; letter-spacing: .15em; font-weight: 700; text-align: center; }
 .or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .9rem; }
 .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--panel-border); }
-.resume { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: rgba(255, 210, 63, .12); border: 1px solid rgba(255, 210, 63, .4); border-radius: 12px; padding: 10px 12px; }
 
 /* ---------------------------------------------------------------- Topbar */
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--panel-border); background: rgba(0, 0, 0, .18); flex-wrap: wrap; }

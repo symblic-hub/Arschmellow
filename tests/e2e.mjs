@@ -1,15 +1,14 @@
-// End-to-End-Test: lokaler PeerServer + statischer Server + 3 Browser (Host + 2 Gäste).
+// End-to-End-Test: lokaler Spielserver (wrangler dev) + statischer Server + 3 Browser.
 // Aufruf: node tests/e2e.mjs [screenshot-ordner]
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { ExpressPeerServer } from 'peer';
+import { spawn } from 'node:child_process';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
-const express = require('express');
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const shotDir = path.resolve(process.argv[2] || path.join(root, 'tests', 'screenshots'));
@@ -26,13 +25,21 @@ const web = http.createServer((req, res) => {
   fs.createReadStream(file).pipe(res);
 });
 await new Promise((r) => web.listen(8123, '127.0.0.1', r));
-const peerApp = express();
-const peerHttp = peerApp.listen(9123, '127.0.0.1');
-peerApp.use('/', ExpressPeerServer(peerHttp, { path: '/' }));
-const peerServer = peerHttp;
-await new Promise((r) => setTimeout(r, 500));
+// Spielserver lokal starten (gleiche Laufzeit wie bei Cloudflare)
+const SERVER_PORT = 8788;
+const gameServer = spawn('npx', ['wrangler', 'dev', '--ip', '127.0.0.1', '--port', String(SERVER_PORT), '--persist-to', path.join(shotDir, '.wrangler-state')], {
+  cwd: root, env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' }, stdio: ['ignore', 'pipe', 'pipe'], detached: true,
+});
+let serverLog = '';
+gameServer.stdout.on('data', (d) => { serverLog += d; });
+gameServer.stderr.on('data', (d) => { serverLog += d; });
+for (let i = 0; ; i++) {
+  try { if ((await fetch(`http://127.0.0.1:${SERVER_PORT}/`)).ok) break; } catch { /* startet noch */ }
+  if (i > 60) { console.error(serverLog); throw new Error('Spielserver startet nicht'); }
+  await new Promise((r) => setTimeout(r, 1000));
+}
 
-const BASE = 'http://127.0.0.1:8123/?peerHost=127.0.0.1&peerPort=9123';
+const BASE = `http://127.0.0.1:8123/?server=ws://127.0.0.1:${SERVER_PORT}`;
 const browser = await chromium.launch();
 const errors = [];
 const pages = [];
@@ -212,6 +219,23 @@ try {
   check(await intruder.isVisible('#home'), 'Fremder mit gleichem Namen wird abgewiesen');
   pages.splice(pages.indexOf(intruder), 1);
 
+  // Host schließt den Tab – das Spiel läuft auf dem Server weiter, Cem darf jetzt verwalten
+  await host.context().close();
+  const cem = pages[2];
+  await cem.waitForFunction(() => window.mm.view.room.isHost === true);
+  await cem.click('[data-act=nextRound]');
+  await cem.waitForFunction(() => window.mm.view.game.round === 3);
+  check(true, 'Host weg: Spiel läuft weiter, Cem startet Runde 3');
+
+  // Unbekannter Raum → klare Fehlermeldung statt endlosem Warten
+  const lost = await newPlayer('Lost');
+  await lost.goto(`${BASE}&join=ZZZZ99`);
+  await lost.fill('#name', 'Lost');
+  await lost.click('#join-form button');
+  await lost.waitForSelector('.toast.error');
+  check((await lost.textContent('.toast.error')).includes('nicht gefunden'), 'Falscher Code: „Raum nicht gefunden“');
+  pages.splice(pages.indexOf(lost), 1);
+
   // Handy-Ansicht
   const mob = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const mp = await mob.newPage();
@@ -228,6 +252,6 @@ try {
 } finally {
   await browser.close();
   web.close();
-  peerServer.close?.();
+  try { process.kill(-gameServer.pid, 'SIGTERM'); } catch { /* schon beendet */ }
   setTimeout(() => process.exit(process.exitCode ?? 0), 200);
 }
