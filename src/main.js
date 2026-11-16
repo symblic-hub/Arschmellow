@@ -23,6 +23,21 @@ function myPid() {
 }
 
 const secretKey = (code) => `mm-secret-${code}`;
+
+// ---------------------------------------------------------------- Bildschirm an lassen (Handy)
+
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && !wakeLock && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } else if (!on && wakeLock) {
+      await wakeLock.release();
+      wakeLock = null;
+    }
+  } catch { /* nicht unterstützt oder abgelehnt – egal */ }
+}
 const cleanName = (n) => String(n || '').replace(/\s+/g, ' ').trim().slice(0, 20) || 'Mallow';
 const CONNECT_TIMEOUT = 10000;
 
@@ -118,6 +133,7 @@ class RoomSession {
       ui.setBusy('');
       ui.setStatus('');
       setUrlCode(this.code);
+      keepAwake(true);
     } else if (msg.t === 'state') {
       ui.render(msg.view);
       if (msg.notice) ui.toast(msg.notice);
@@ -136,6 +152,7 @@ class RoomSession {
 
   giveUp(text) {
     this.stop();
+    keepAwake(false);
     ui.setBusy('');
     ui.setStatus('');
     ui.showScreen('home');
@@ -182,6 +199,7 @@ function joinRoom(codeInput, name) {
 }
 
 function leave() {
+  keepAwake(false);
   current?.leave();
   current = null;
   setUrlCode(null);
@@ -203,7 +221,10 @@ ui.init({
 });
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') current?.wake();
+  if (document.visibilityState === 'visible' && current) {
+    current.wake();
+    keepAwake(true); // Sperre geht beim Wechsel in eine andere App verloren
+  }
 });
 window.addEventListener('online', () => current?.wake());
 

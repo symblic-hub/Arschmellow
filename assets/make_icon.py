@@ -2,7 +2,7 @@
 
     python3 assets/make_icon.py
 
-Ausgabe: assets/icon.png (16:9, 960x540) und assets/icon-square.png (512x512).
+Ausgabe: assets/icon.png (16:9, 960x540), assets/icon-square.png (512x512) und assets/icon-192.png (192x192).
 Gezeichnet wird auf einem winzigen Raster (32x18 bzw. 20x20) und dann pixelgenau hochskaliert.
 """
 from pathlib import Path
@@ -130,4 +130,11 @@ def square():
 if __name__ == '__main__':
     here = Path(__file__).parent
     render(wide(), 30, here / 'icon.png')
-    render(square(), 26, here / 'icon-square.png')
+    # Quadratische Icons (Startbildschirm): Raster pixelgenau skaliert, mit Hintergrundrand auf Standardgröße
+    for name, scale, size in (('icon-square.png', 25, 512), ('icon-192.png', 9, 192)):
+        path = here / name
+        render(square(), scale, path)
+        img = Image.open(path)
+        framed = Image.new('RGB', (size, size), PALETTE['.'])
+        framed.paste(img, ((size - img.width) // 2, (size - img.height) // 2))
+        framed.save(path)

@@ -150,6 +150,10 @@ function eventText(e, nameOf) {
 export function init(h) {
   handlers = h;
   document.addEventListener('click', onClick);
+  document.addEventListener('pointerdown', () => sound.unlock(), { passive: true });
+  mobileQuery?.addEventListener?.('change', () => rerender());
+  // Unten-Blätter (Regeln, Punkte) durch Tippen daneben schließen
+  $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
   $('#name').value = h.savedName || '';
   $('#join-code').value = h.prefillCode || '';
   $('#create-form').addEventListener('submit', (e) => {
@@ -278,6 +282,11 @@ function uiAction(what, btn) {
   if (what === 'set-mode') { sel.mode = 'set'; sel.set = []; return rerender(); }
   if (what === 'set-cancel') { sel.mode = null; sel.set = []; return rerender(); }
   if (what === 'rules') return openModal(RULES_HTML, 'wide');
+  if (what === 'scores') {
+    return openModal(`<h2>🏆 Punkte</h2><div class="scores">${$('#scores').innerHTML}</div>
+      <h3>Verlauf</h3><ol class="log">${$('#log').innerHTML}</ol>
+      <button class="primary big" data-ui="close-modal">Schließen</button>`, 'wide sheet');
+  }
   if (what === 'mute') {
     sound.setMuted(!sound.isMuted());
     updateMuteButtons();
@@ -433,6 +442,7 @@ function renderGame(view) {
       <div class="opp-head">
         <span class="avatar">${esc(p.name.slice(0, 1).toUpperCase())}</span>
         <span class="pname">${esc(p.name)}</span>
+        <span class="opp-pts" title="Gesamtpunkte">${num(p.total)} P</span>
         ${active ? '<span class="badge turn">am Zug</span>' : ''}
         ${g.final?.caller === p.id ? '<span class="badge call">🔥 gerufen</span>' : ''}
         ${g.phase === 'peek' ? (p.ready ? '<span class="badge ok">bereit</span>' : '<span class="badge">merkt sich …</span>') : ''}
@@ -450,7 +460,7 @@ function renderGame(view) {
 
   // Mitte: Stapel
   const canDraw = myTurn && step === 'start';
-  const deckEl = `<${canDraw ? 'button' : 'div'} id="pile-deck" class="pile deck ${canDraw ? 'clickable' : ''}" ${canDraw ? 'data-pile="deck"' : ''}>
+  const deckEl = `<${canDraw ? 'button' : 'div'} id="pile-deck" class="pile deck ${canDraw ? 'clickable' : ''}" data-count="${num(g.deckCount)}" ${canDraw ? 'data-pile="deck"' : ''}>
       ${cardBack()}<span class="pile-label">Stapel · ${num(g.deckCount)}</span></${canDraw ? 'button' : 'div'}>`;
   const canDiscard = canDraw && g.discardTop;
   const discardEl = `<${canDiscard ? 'button' : 'div'} id="pile-discard" class="pile discard ${canDiscard ? 'clickable' : ''}" ${canDiscard ? 'data-pile="discard"' : ''}>
@@ -478,25 +488,28 @@ function renderGame(view) {
     if (!myTurn) {
       prompt = '';
     } else if (sel.mode === 'set') {
-      prompt = 'Markiere deine <b>verdeckten</b> Karten: mind. <b>3 gleiche Zahlenkarten</b> oder <b>2 gleiche Aktionskarten</b>. Sie werden alle gegen deine neue Karte getauscht. Liegst du falsch, bleibt die neue Karte als <b>Strafkarte</b> liegen!';
+      prompt = 'Markiere mind. <b>3 gleiche Zahlen</b> oder <b>2 gleiche Aktionskarten</b> (verdeckt).<span class="long"> Sie werden alle gegen deine neue Karte getauscht. Liegst du falsch, bleibt die neue Karte als <b>Strafkarte</b> liegen!</span>';
       buttons = `<button class="primary" data-act="set-confirm" ${sel.set.length >= 2 ? '' : 'disabled'}>Loswerden (${num(sel.set.length)})</button>
         <button class="ghost" data-ui="set-cancel">Abbrechen</button>`;
     } else if (step === 'start') {
       prompt = 'Zieh vom <b>Stapel</b> oder nimm die <b>Ablagekarte</b>.';
-      if (!g.final) prompt += ' Oder ruf <b>„MAYHEM!“</b>, wenn du glaubst, die wenigsten Punkte zu haben.';
-      buttons = g.final ? '' : '<button class="mayhem" data-act="call">🔥 MAYHEM! rufen</button>';
+      if (!g.final) prompt += '<span class="long"> Oder ruf <b>„MAYHEM!“</b>, wenn du glaubst, die wenigsten Punkte zu haben.</span>';
+      buttons = `<button class="primary mobile-only" data-pile="deck">🂠 Ziehen</button>
+        ${g.discardTop ? '<button class="mobile-only" data-pile="discard">Ablage nehmen</button>' : ''}
+        ${g.final ? '' : '<button class="mayhem" data-act="call">🔥 MAYHEM!</button>'}`;
     } else if (step === 'decide') {
       const d = t.drawn;
       const canAction = d && d.kind === 'action' && t.drawnFrom === 'deck';
       const hasHiddenCards = me.hand.some((s) => !s.up);
-      prompt = hasHiddenCards
-        ? 'Klicke eine deiner <b>verdeckten</b> Karten an, um sie (blind) gegen die neue Karte zu tauschen.'
-        : 'Du hast keine verdeckten Karten mehr.';
-      prompt += hasHiddenCards ? ' Oder lehne sie ab – dann musst du eine Karte aufdecken.' : ' Lehne sie ab.';
-      if (canAction) prompt += ` Oder nutze die Aktion: <i>${esc(ACTION_META[d.action]?.hint)}</i>.`;
+      let text = hasHiddenCards
+        ? 'Wähle eine deiner <b>verdeckten</b> Karten zum Tauschen.'
+        : 'Du hast keine verdeckten Karten mehr – lehne die Karte ab.';
+      if (hasHiddenCards) text += '<span class="long"> Die neue Karte ersetzt sie blind. Oder lehne sie ab – dann musst du eine Karte aufdecken.</span>';
+      if (canAction) text += `<span class="long"> Oder nutze die Aktion: <i>${esc(ACTION_META[d.action]?.hint)}</i>.</span>`;
+      prompt = (d ? `<span class="drawn-thumb" aria-hidden="true">${cardFace(d)}</span>` : '') + `<span class="ptxt">${text}</span>`;
       buttons = `${canAction ? `<button class="primary" data-act="useAction">${ACTION_META[d.action].icon} ${esc(d.name)} ausführen</button>` : ''}
         <button class="ghost" data-act="reject">${hasHiddenCards ? 'Ablehnen &amp; aufdecken' : 'Ablehnen'}</button>
-        ${hasHiddenCards ? '<button class="ghost" data-ui="set-mode">Mehrere gleiche loswerden …</button>' : ''}`;
+        ${hasHiddenCards ? '<button class="ghost" data-ui="set-mode">Gleiche loswerden …</button>' : ''}`;
     } else if (step === 'spy') {
       prompt = '👀 Klicke eine <b>beliebige verdeckte</b> Karte an (deine oder die eines Mitspielers).';
     } else if (step === 'swap') {
@@ -504,7 +517,7 @@ function renderGame(view) {
     } else if (step === 'spyResult') {
       prompt = 'Merk dir die Karte!';
     } else if (step === 'reveal') {
-      prompt = 'Du hast abgelehnt – <b>decke jetzt eine deiner verdeckten Karten auf</b>. Sie ist dann bis zum Rundenende gesperrt.';
+      prompt = '<b>Decke jetzt eine deiner verdeckten Karten auf.</b><span class="long"> Sie ist dann bis zum Rundenende gesperrt.</span>';
     }
   }
   let banner = '';
@@ -515,6 +528,7 @@ function renderGame(view) {
   $('#prompt').innerHTML = `${banner}<div class="prompt-text">${prompt}</div><div class="prompt-buttons">${buttons}</div>`;
   $('#prompt').classList.toggle('myturn', !!myTurn || (g.phase === 'peek' && !g.peek.ready));
   $('#prompt').hidden = !banner && !prompt && !buttons.trim();
+  placePrompt();
 
   // Wer ist dran? – großes Banner
   let bar = '';
@@ -535,7 +549,7 @@ function renderGame(view) {
 
   // Eigene Hand
   const cols = Math.min(3, Math.ceil(me.hand.length / 2)) || 1;
-  $('#myhand').innerHTML = `<div class="hand" style="--cols:${num(cols)}">
+  $('#myhand').innerHTML = `<div class="hand${me.hand.length > 6 ? ' many' : ''}" style="--cols:${num(cols)}">
     ${me.hand.map((s, i) => slotHTML(s, { pid: g.me, index: i, clickable: myClickable(s), animKey: `r${g.round}${s.peeking ? 'p' : ''}`, mark: marks.get(`${g.me}:${i}`),
       selected: (sel.mode === 'set' && sel.set.includes(i)) || sel.swapMine === i })).join('')}
   </div>`;
@@ -570,6 +584,14 @@ function renderGame(view) {
     m.dataset.locked = '0';
     m.hidden = true;
   }
+}
+
+/** Handy hochkant: Anleitung + Knöpfe direkt über der eigenen Hand (immer sichtbar). */
+const mobileQuery = window.matchMedia?.('(max-width: 640px)');
+function placePrompt() {
+  const prompt = $('#prompt');
+  const target = mobileQuery?.matches ? $('#mine') : $('.center-info');
+  if (prompt && target && prompt.parentElement !== target) target.prepend(prompt);
 }
 
 function rotateFrom(players, pid) {

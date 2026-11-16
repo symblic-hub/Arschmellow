@@ -211,6 +211,12 @@ const SOUNDS = {
   click: () => tone({ freq: 1200, type: 'sine', dur: 0.04, vol: 0.05 }),
 };
 
+/** Kurz vibrieren (nur wo unterstützt, z. B. Android) – aus, wenn der Ton aus ist. */
+export function vibrate(pattern) {
+  if (muted) return;
+  try { navigator.vibrate?.(pattern); } catch { /* egal */ }
+}
+
 export function play(name) {
   if (muted || !SOUNDS[name]) return;
   try {

@@ -26,6 +26,14 @@ Der Server hält den Spielstand und schickt jedem nur das, was er sehen darf –
 - Karten fliegen sichtbar vom Stapel in die Hand, auf die Ablage und beim Tauschen zwischen den Spielern.
 - Was im letzten Zug passiert ist, bleibt markiert (✨ neu, 🔄 getauscht, ⚠ Strafe, 👀 gespickt) und steht im Ticker.
 
+## Auf dem Handy
+
+- Hochkant passt alles auf einen Bildschirm: Mitspieler oben (bei vielen seitlich wischen), Stapel in der Mitte,
+  **eigene Karten + Knöpfe immer unten**. Quer: Tisch links, eigene Karten rechts.
+- 🏆 oben öffnet Punkte & Verlauf. Der Bildschirm bleibt während des Spiels an; auf Android vibriert es, wenn du dran bist.
+- **Wie eine App:** Im Browser „Zum Home-Bildschirm“ (iPhone: Teilen → Zum Home-Bildschirm, Android: ⋮ → App installieren)
+  – dann startet das Spiel im Vollbild ohne Browserleisten.
+
 ## Datenschutz & Sicherheit
 
 - Keine Konten. Im Browser gespeichert werden nur dein Name und ein geheimer Schlüssel für deinen Platz im Raum.

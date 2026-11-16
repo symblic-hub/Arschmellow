@@ -1,0 +1,16 @@
+{
+  "name": "Marshmellow Mayhem",
+  "short_name": "Mayhem",
+  "description": "Online-Merk- und Tauschkartenspiel für 2–6 Spieler",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#241733",
+  "theme_color": "#241733",
+  "lang": "de",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-square.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

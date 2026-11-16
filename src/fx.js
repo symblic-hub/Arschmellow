@@ -1,7 +1,7 @@
 // Marshmellow Mayhem – Animationen: fliegende Karten, Umdrehen, Hervorhebungen.
 // Ablauf: vor dem Neuzeichnen snapshot() → nach dem Neuzeichnen play(neueEreignisse, snapshot, …).
 
-import { play as sound } from './sound.js';
+import { play as sound, vibrate } from './sound.js';
 
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -221,7 +221,7 @@ async function playOne(ev, prev, view, ctx) {
     case 'turn': {
       const area = el(`[data-player="${CSS.escape(ev.p)}"]`);
       flash(area, 'turn-start', 1200);
-      if (ev.p === ctx.me) sound('yourTurn');
+      if (ev.p === ctx.me) { sound('yourTurn'); vibrate([60, 60, 120]); }
       return;
     }
     case 'round': {
