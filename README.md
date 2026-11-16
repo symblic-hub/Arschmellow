@@ -34,7 +34,7 @@ Nach der Original-Spielanleitung von „Arschmallows“ – unter eigenem Namen 
 - Jeder hat **6 verdeckte Karten** (Kindermodus: 4) und darf sich zu Rundenbeginn **2 davon einmal ansehen**.
 - **Dein Zug:** Karte vom Nachziehstapel ziehen *oder* die oberste Ablagekarte nehmen, dann:
   1. **Tauschen** – verdeckt gegen eine eigene verdeckte Karte, die alte kommt offen auf die Ablage. Zug vorbei.
-  2. **Ablehnen** (nur Stapelkarten) – Karte ablegen und dafür eine eigene verdeckte Karte **aufdecken**; sie ist dann **gesperrt**.
+  2. **Ablehnen** – Karte (auch eine von der Ablage) zurück auf die Ablage legen und dafür eine eigene verdeckte Karte **aufdecken**; sie ist dann **gesperrt**.
   3. **Aktion** (nur Aktionskarten vom Stapel) – danach ist der Zug vorbei (kein Tauschen, kein Aufdecken).
 - **Aktionskarten** (zählen am Ende ihren Wert!):
   👀 *Spicken* (9) – beliebige verdeckte Karte ansehen ·

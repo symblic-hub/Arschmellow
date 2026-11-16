@@ -106,15 +106,42 @@ test('Gezogene Stapelkarte sehen nur der Ziehende', () => {
   assert.equal(viewFor(g, other).turn.drawn, null);
 });
 
-test('Ablagekarte darf nicht abgelehnt werden; offene Karten nicht tauschbar', () => {
+test('Ablagekarte: tauschen oder ablehnen (dann aufdecken); offene Karten nicht tauschbar', () => {
   const g = createGame(P, {}, seeded());
   readyAll(g);
   const cur = g.turn.player;
   g.hands[cur][0].up = true;
+  const top = g.discard.at(-1);
   applyAction(g, cur, { type: 'draw', from: 'discard' });
-  assert.throws(() => applyAction(g, cur, { type: 'reject' }), RuleError);
   assert.throws(() => applyAction(g, cur, { type: 'replace', index: 0 }), RuleError);
-  applyAction(g, cur, { type: 'replace', index: 1 });
+  applyAction(g, cur, { type: 'reject' });
+  assert.equal(g.discard.at(-1), top, 'Karte liegt wieder oben auf der Ablage');
+  assert.equal(g.turn.step, 'reveal');
+  applyAction(g, cur, { type: 'reveal', index: 1 });
+  assert.equal(g.hands[cur][1].up, true);
+  assert.notEqual(g.turn.player, cur);
+});
+
+test('Nochmal!: in beiden Extra-Zügen ablehnen und aufdecken (Stapel und Ablage)', () => {
+  const g = createGame(P, {}, seeded(11));
+  readyAll(g);
+  const cur = g.turn.player;
+  g.deck.push(card(11, 'action', 'again'));
+  applyAction(g, cur, { type: 'draw', from: 'deck' });
+  applyAction(g, cur, { type: 'useAction' });
+  // Extra-Zug 1: vom Stapel ziehen, ablehnen, aufdecken
+  assert.equal(g.turn.player, cur);
+  applyAction(g, cur, { type: 'draw', from: 'deck' });
+  applyAction(g, cur, { type: 'reject' });
+  applyAction(g, cur, { type: 'reveal', index: 0 });
+  // Extra-Zug 2: von der Ablage nehmen, ablehnen, aufdecken
+  assert.equal(g.turn.player, cur);
+  assert.equal(g.turn.extraTurns, 0);
+  applyAction(g, cur, { type: 'draw', from: 'discard' });
+  applyAction(g, cur, { type: 'reject' });
+  applyAction(g, cur, { type: 'reveal', index: 1 });
+  assert.notEqual(g.turn.player, cur);
+  assert.deepEqual(g.hands[cur].slice(0, 2).map((s) => s.up), [true, true]);
 });
 
 test('Aktion nur von Stapel; Spicken zeigt Karte nur dem Spicker', () => {

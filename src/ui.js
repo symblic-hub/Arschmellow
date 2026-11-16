@@ -387,10 +387,10 @@ function renderGame(view) {
       prompt = hasHiddenCards
         ? 'Klicke eine deiner <b>verdeckten</b> Karten an, um sie (blind) gegen die neue Karte zu tauschen.'
         : 'Du hast keine verdeckten Karten mehr.';
-      if (t.drawnFrom === 'deck') prompt += ' Oder lehne sie ab – dann musst du eine Karte aufdecken.';
+      prompt += hasHiddenCards ? ' Oder lehne sie ab – dann musst du eine Karte aufdecken.' : ' Lehne sie ab.';
       if (canAction) prompt += ` Oder nutze die Aktion: <i>${esc(ACTION_META[d.action]?.hint)}</i>.`;
       buttons = `${canAction ? `<button class="primary" data-act="useAction">${ACTION_META[d.action].icon} ${esc(d.name)} ausführen</button>` : ''}
-        ${t.drawnFrom === 'deck' ? `<button class="ghost" data-act="reject">${hasHiddenCards ? 'Ablehnen &amp; aufdecken' : 'Ablehnen'}</button>` : ''}
+        <button class="ghost" data-act="reject">${hasHiddenCards ? 'Ablehnen &amp; aufdecken' : 'Ablehnen'}</button>
         ${hasHiddenCards ? '<button class="ghost" data-ui="set-mode">Mehrere gleiche loswerden …</button>' : ''}`;
     } else if (step === 'spy') {
       prompt = '👀 Klicke eine <b>beliebige verdeckte</b> Karte an (deine oder die eines Mitspielers).';

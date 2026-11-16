@@ -292,7 +292,6 @@ export function applyAction(state, pid, action, rng = Math.random) {
         return state;
       }
       if (type === 'reject') {
-        if (t.drawnFrom === 'discard') fail('Eine Karte von der Ablage musst du gegen eine eigene tauschen.');
         state.discard.push(t.drawn);
         log(state, `${me} lehnt ${cardLabel(t.drawn)} ab.`);
         t.drawn = null;
