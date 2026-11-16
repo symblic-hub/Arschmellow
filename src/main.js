@@ -24,6 +24,8 @@ function myPid() {
   return id;
 }
 
+const newSecret = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+const secretKey = (code) => `mm-secret-${code}`;
 const cleanName = (n) => String(n || '').replace(/\s+/g, ' ').trim().slice(0, 20) || 'Mallow';
 const HOST_KEY = 'mm-host-room';
 const HOST_MAX_AGE = 12 * 3600 * 1000;
@@ -70,6 +72,14 @@ class HostSession {
     conn.on('data', (msg) => this.onMessage(conn, msg));
     conn.on('close', () => this.dropConn(conn));
     conn.on('error', () => this.dropConn(conn));
+    // Verbindungsabbrüche früh erkennen (das 'close'-Ereignis kommt oft erst nach ~30 s)
+    conn.on('iceStateChanged', (state) => {
+      if (state === 'disconnected' || state === 'failed' || state === 'closed') this.dropConn(conn);
+      else if ((state === 'connected' || state === 'completed') && conn.pid && !this.conns.has(conn.pid)) {
+        this.conns.set(conn.pid, conn);
+        this.broadcast();
+      }
+    });
   }
 
   dropConn(conn) {
@@ -95,22 +105,25 @@ class HostSession {
     const reject = (text) => { conn.send({ t: 'fatal', msg: text }); setTimeout(() => conn.close(), 500); };
     let pid = String(msg.pid || '').slice(0, 40);
     const name = cleanName(msg.name);
+    const secret = String(msg.secret || '').slice(0, 64);
     if (!pid || pid === this.hostId) return reject('Ungültige Spieler-ID.');
     let p = this.room.players.find((x) => x.id === pid);
+    if (p && p.secret && p.secret !== secret) return reject('Dieser Platz gehört jemand anderem.');
+    if (p && !p.secret) p.secret = newSecret(); // Räume aus älteren Versionen
     if (!p) {
-      // Wiedereinstieg mit neuer Tab-ID: freien Platz mit gleichem Namen übernehmen
-      const seat = this.room.players.find((x) => x.name.toLowerCase() === name.toLowerCase() && !this.isConnected(x.id));
+      // Wiedereinstieg mit neuer Tab-ID: nur mit dem geheimen Schlüssel des Platzes
+      const seat = secret && this.room.players.find((x) => x.secret === secret && !this.isConnected(x.id));
       if (seat) {
         p = seat;
         pid = seat.id;
       } else if (this.game) {
-        return reject('Das Spiel läuft schon. Nur Spieler, die vorher dabei waren, können wieder einsteigen (gleicher Name).');
+        return reject('Das Spiel läuft schon. Nur Spieler, die vorher dabei waren, können wieder einsteigen (mit demselben Browser).');
       } else if (this.room.players.length >= CONFIG.maxPlayers) {
         return reject('Der Raum ist voll (max. 6 Spieler).');
       } else {
         let unique = name;
         for (let i = 2; this.room.players.some((x) => x.name.toLowerCase() === unique.toLowerCase()); i++) unique = `${name} ${i}`;
-        p = { id: pid, name: unique };
+        p = { id: pid, name: unique, secret: newSecret() };
         this.room.players.push(p);
       }
     }
@@ -118,7 +131,7 @@ class HostSession {
     if (old && old !== conn) { old.pid = null; safe(() => old.close()); }
     conn.pid = pid;
     this.conns.set(pid, conn);
-    conn.send({ t: 'welcome', pid });
+    conn.send({ t: 'welcome', pid, secret: p.secret });
     ui.toast(`${p.name} ist da! 👋`);
     this.persist();
     this.broadcast();
@@ -232,7 +245,8 @@ class ClientSession {
     const conn = this.peer.connect(peerIdFor(this.code), { reliable: true, serialization: 'json' });
     this.conn = conn;
     conn.on('open', () => {
-      conn.send({ t: 'hello', pid: myPid(), name: this.name });
+      const secret = session.get(secretKey(this.code)) || local.get(secretKey(this.code)) || '';
+      conn.send({ t: 'hello', pid: myPid(), name: this.name, secret });
     });
     conn.on('data', (msg) => this.onMessage(msg));
     conn.on('close', () => {
@@ -269,6 +283,10 @@ class ClientSession {
     if (msg.t === 'welcome') {
       this.everConnected = true;
       session.set('mm-pid', msg.pid);
+      if (msg.secret) {
+        session.set(secretKey(this.code), msg.secret);
+        local.set(secretKey(this.code), msg.secret);
+      }
       ui.setBusy('');
       ui.setStatus('');
       setUrlCode(this.code);
@@ -352,7 +370,7 @@ function resumeRoom() {
 
 function joinRoom(codeInput, name) {
   const code = normalizeCode(codeInput);
-  if (code.length < 4) return ui.toast('Der Raumcode hat 4 Zeichen.', 'error');
+  if (code.length < 4 || code.length > 8) return ui.toast('Der Raumcode hat 6 Zeichen.', 'error');
   local.set('mm-name', name);
   const saved = savedHostRoom();
   if (saved && saved.code === code) return resumeRoom();

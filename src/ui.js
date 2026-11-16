@@ -2,6 +2,8 @@
 // render(view) zeichnet alles neu; Klicks gehen über handlers.act(action).
 
 const $ = (sel, root = document) => root.querySelector(sel);
+/** Erzwingt eine Zahl – schützt davor, dass manipulierte Daten als HTML eingeschleust werden. */
+const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 let handlers = {};
@@ -55,14 +57,14 @@ export function cardFace(card) {
   if (card.kind === 'action') {
     const m = ACTION_META[card.action] ?? { icon: '❓', color: '#888', hint: '' };
     return `<div class="card front action" style="--accent:${m.color}" title="${esc(m.hint)}">
-      <span class="corner tl">${card.value}</span>
+      <span class="corner tl">${num(card.value)}</span>
       <div class="art action-art"><span>${m.icon}</span></div>
       <div class="cname">${esc(card.name)}</div>
     </div>`;
   }
   const cls = card.value < 0 ? 'special' : card.value >= 7 ? 'burnt' : '';
   return `<div class="card front number ${cls}" style="--roast:${ROAST[Math.max(0, Math.min(8, card.value))]}">
-    <span class="corner tl">${card.value}</span>
+    <span class="corner tl">${num(card.value)}</span>
     <div class="art">${mallowSVG(card.value)}</div>
     <div class="cname">${esc(card.name)}</div>
   </div>`;
@@ -268,7 +270,7 @@ function renderLobby(view) {
         <div class="linkrow"><input readonly value="${esc(link)}" onclick="this.select()"><button data-ui="copy-link" data-link="${esc(link)}">Kopieren</button></div>
       </section>
       <section class="panel">
-        <h2>Spieler (${r.players.length}/6)</h2>
+        <h2>Spieler (${num(r.players.length)}/6)</h2>
         <ul class="players">${players}</ul>
       </section>
       <section class="panel">
@@ -338,18 +340,18 @@ function renderGame(view) {
         ${r.isHost && connected[p.id] === false && (active || (g.phase === 'peek' && !p.ready))
           ? `<button class="mini" data-act="skip" data-pid="${esc(p.id)}" title="Spieler ist offline">Überspringen</button>` : ''}
       </div>
-      <div class="hand sm" style="--cols:${cols}">
+      <div class="hand sm" style="--cols:${num(cols)}">
         ${p.hand.map((s, i) => slotHTML(s, { pid: p.id, index: i, size: 'sm', clickable: oppClickable(s), animKey: `r${g.round}`,
           selected: sel.swapTheirs && sel.swapTheirs.pid === p.id && sel.swapTheirs.index === i })).join('')}
       </div>
-      <div class="opp-foot">Gesamt: <b>${p.total}</b> · offen: ${p.openSum}</div>
+      <div class="opp-foot">Gesamt: <b>${num(p.total)}</b> · offen: ${num(p.openSum)}</div>
     </div>`;
   }).join('');
 
   // Mitte: Stapel
   const canDraw = myTurn && (step === 'start' || step === 'draw') && sel.mode !== 'set';
   const deckEl = `<${canDraw ? 'button' : 'div'} class="pile deck ${canDraw ? 'clickable' : ''}" ${canDraw ? 'data-pile="deck"' : ''}>
-      ${cardBack()}<span class="pile-label">Stapel · ${g.deckCount}</span></${canDraw ? 'button' : 'div'}>`;
+      ${cardBack()}<span class="pile-label">Stapel · ${num(g.deckCount)}</span></${canDraw ? 'button' : 'div'}>`;
   const canDiscard = canDraw && g.discardTop;
   const discardEl = `<${canDiscard ? 'button' : 'div'} class="pile discard ${canDiscard ? 'clickable' : ''}" ${canDiscard ? 'data-pile="discard"' : ''}>
       ${g.discardTop ? cardFace(g.discardTop) : '<div class="card empty"></div>'}<span class="pile-label">Ablage</span></${canDiscard ? 'button' : 'div'}>`;
@@ -382,7 +384,7 @@ function renderGame(view) {
         <button class="ghost" data-ui="set-cancel">Abbrechen</button>`;
     } else if (step === 'start' || step === 'draw') {
       prompt = step === 'start'
-        ? `<b>Du bist dran${t.extraTurns ? ` (noch ${t.extraTurns} Extra-Zug${t.extraTurns > 1 ? 'züge' : ''} danach)` : ''}!</b> Zieh vom Stapel oder nimm die Ablagekarte.`
+        ? `<b>Du bist dran${t.extraTurns ? ` (noch ${num(t.extraTurns)} Extra-Zug${t.extraTurns > 1 ? 'züge' : ''} danach)` : ''}!</b> Zieh vom Stapel oder nimm die Ablagekarte.`
         : 'Zieh jetzt eine Karte vom Stapel oder nimm die Ablagekarte.';
       if (step === 'start') {
         buttons = `<button class="mayhem" data-act="call">🔥 MAYHEM! rufen</button>
@@ -416,13 +418,13 @@ function renderGame(view) {
 
   // Eigene Hand
   const cols = Math.min(3, Math.ceil(me.hand.length / 2)) || 1;
-  $('#myhand').innerHTML = `<div class="hand" style="--cols:${cols}">
+  $('#myhand').innerHTML = `<div class="hand" style="--cols:${num(cols)}">
     ${me.hand.map((s, i) => slotHTML(s, { pid: g.me, index: i, clickable: myClickable(s), animKey: `r${g.round}${s.peeking ? 'p' : ''}`,
       selected: (sel.mode === 'set' && sel.set.includes(i)) || sel.swapMine === i })).join('')}
   </div>`;
   $('#myinfo').innerHTML = `<span class="avatar">${esc(me.name.slice(0, 1).toUpperCase())}</span>
     <span class="pname">${esc(me.name)}</span> ${myTurn ? '<span class="badge turn">am Zug</span>' : ''}
-    <span class="muted">Gesamt: <b>${me.total}</b> · offen: ${me.openSum}</span>`;
+    <span class="muted">Gesamt: <b>${num(me.total)}</b> · offen: ${num(me.openSum)}</span>`;
   $('#mine').classList.toggle('active', !!myTurn);
 
   // Kopfzeile
@@ -438,7 +440,7 @@ function renderGame(view) {
     const owner = g.players.find((p) => p.id === g.spy.target);
     m.dataset.locked = '1';
     openModal(`<h2>👀 Gespickt!</h2>
-      <p>${g.spy.target === g.me ? `Deine Karte ${g.spy.index + 1}` : `Karte ${g.spy.index + 1} von <b>${esc(owner?.name)}</b>`}:</p>
+      <p>${g.spy.target === g.me ? `Deine Karte ${num(g.spy.index) + 1}` : `Karte ${num(g.spy.index) + 1} von <b>${esc(owner?.name)}</b>`}:</p>
       <div class="modal-card">${cardFace(g.spy.card)}</div>
       <p class="muted">Merk sie dir – sie wird gleich wieder verdeckt.</p>
       <button class="primary big" data-act="ack">Gemerkt!</button>`, 'spy');
@@ -458,12 +460,12 @@ function rotateFrom(players, pid) {
 
 function renderScores(g) {
   const head = g.players.map((p) => `<th>${esc(p.name)}</th>`).join('');
-  const rows = g.history.map((h) => `<tr><td>${h.round}</td>${g.players.map((p) => {
+  const rows = g.history.map((h) => `<tr><td>${num(h.round)}</td>${g.players.map((p) => {
     const doubled = h.caller === p.id && h.callerFailed;
     const called = h.caller === p.id && !h.callerFailed;
-    return `<td class="${doubled ? 'bad' : called ? 'good' : ''}">${h.scores[p.id]}${doubled ? ' ×2' : called ? ' 🔥' : ''}</td>`;
+    return `<td class="${doubled ? 'bad' : called ? 'good' : ''}">${num(h.scores[p.id])}${doubled ? ' ×2' : called ? ' 🔥' : ''}</td>`;
   }).join('')}</tr>`).join('');
-  const totals = g.players.map((p) => `<td><b>${p.total}</b></td>`).join('');
+  const totals = g.players.map((p) => `<td><b>${num(p.total)}</b></td>`).join('');
   $('#scores').innerHTML = `<table><thead><tr><th>#</th>${head}</tr></thead><tbody>${rows}</tbody>
     <tfoot><tr><td>Σ</td>${totals}</tr></tfoot></table>`;
 }
@@ -478,9 +480,9 @@ function roundEndHTML(view) {
     const doubled = res.caller === p.id && res.callerFailed;
     return `<div class="result-row ${res.scores[p.id] === best ? 'best' : ''}">
       <div class="result-name">${esc(p.name)} ${res.caller === p.id ? '<span class="badge turn">🔥 rief Mayhem</span>' : ''}</div>
-      <div class="hand xs" style="--cols:${p.hand.length}">${p.hand.map((s, i) => slotHTML(s, { pid: p.id, index: i, size: 'xs', animKey: `end${g.round}` })).join('')}</div>
-      <div class="result-score">${doubled ? `<s>${res.raw[p.id]}</s> → <b class="bad">${res.scores[p.id]}</b>` : `<b>${res.scores[p.id]}</b>`}
-        <span class="muted">Gesamt ${p.total}</span></div>
+      <div class="hand xs" style="--cols:${num(p.hand.length)}">${p.hand.map((s, i) => slotHTML(s, { pid: p.id, index: i, size: 'xs', animKey: `end${g.round}` })).join('')}</div>
+      <div class="result-score">${doubled ? `<s>${num(res.raw[p.id])}</s> → <b class="bad">${num(res.scores[p.id])}</b>` : `<b>${num(res.scores[p.id])}</b>`}
+        <span class="muted">Gesamt ${num(p.total)}</span></div>
     </div>`;
   }).join('');
   let callerText = '';
@@ -493,14 +495,14 @@ function roundEndHTML(view) {
   let footer;
   if (over) {
     const ranking = [...g.players].sort((a, b) => a.total - b.total)
-      .map((p, i) => `<li><span class="rank">${['🥇', '🥈', '🥉'][i] ?? `${i + 1}.`}</span> ${esc(p.name)} <b>${p.total}</b></li>`).join('');
+      .map((p, i) => `<li><span class="rank">${['🥇', '🥈', '🥉'][i] ?? `${i + 1}.`}</span> ${esc(p.name)} <b>${num(p.total)}</b></li>`).join('');
     footer = `<h3>🎉 Gewonnen: ${esc(g.winners.join(' & '))}</h3><ol class="ranking">${ranking}</ol>
       ${view.room.isHost ? '<button class="primary big" data-act="newGame">Neues Spiel (zurück zur Lobby)</button>' : '<p class="muted">Der Host kann ein neues Spiel starten.</p>'}`;
   } else {
     footer = `<button class="primary big" data-act="nextRound">Nächste Runde ▶</button>
       <p class="muted">Wer diese Runde die meisten Punkte hatte, beginnt.</p>`;
   }
-  return `<h2>${over ? 'Spielende' : `Runde ${g.round} vorbei`}</h2>${callerText}<div class="results">${rows}</div>${footer}`;
+  return `<h2>${over ? 'Spielende' : `Runde ${num(g.round)} vorbei`}</h2>${callerText}<div class="results">${rows}</div>${footer}`;
 }
 
 // ---------------------------------------------------------------- Regeln

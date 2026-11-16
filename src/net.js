@@ -7,7 +7,7 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 export const peerIdFor = (code) => PREFIX + code.toUpperCase();
 
-export function makeCode(len = 4) {
+export function makeCode(len = 6) {
   let s = '';
   const buf = new Uint32Array(len);
   crypto.getRandomValues(buf);

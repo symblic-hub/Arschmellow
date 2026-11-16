@@ -7,16 +7,26 @@ Weniger Punkte sind besser!
 
 1. Seite öffnen (GitHub-Pages-Link, siehe unten).
 2. Namen eingeben → **Neuen Raum erstellen**.
-3. Den **Einladungslink** (oder den 4-stelligen Code) an deine Freunde schicken.
+3. Den **Einladungslink** (oder den 6-stelligen Code) an deine Freunde schicken.
 4. Wenn alle in der Lobby sind: **Spiel starten**.
 
 Die Browser verbinden sich direkt miteinander (WebRTC über [PeerJS](https://peerjs.com)).
 Wer den Raum erstellt, ist **Host**: Bei ihm läuft das Spiel. Lässt er den Tab offen, können alle weiterspielen.
 
-- **Neu laden / Verbindung weg?** Einfach denselben Link wieder öffnen – du landest auf deinem Platz
-  (beim Wiedereinstieg in einem neuen Tab denselben Namen verwenden).
+- **Neu laden / Verbindung weg?** Einfach denselben Link im selben Browser wieder öffnen – du landest auf deinem Platz.
 - **Host lädt neu?** Der Raum wird aus dem Browser-Speicher wiederhergestellt, die anderen verbinden sich automatisch neu.
 - Funktioniert in Chrome, Edge, Firefox und Safari. In manchen Firmen- oder Schulnetzen ist WebRTC blockiert.
+
+## Datenschutz & Sicherheit
+
+- Es gibt keinen eigenen Server und keine Konten. Gespeichert wird nur lokal im Browser (Name, Raum des Hosts).
+- Der öffentliche [PeerJS-Vermittlungsserver](https://peerjs.com) (0.peerjs.com) bringt die Browser nur zusammen;
+  die Spieldaten laufen danach direkt zwischen den Spielern.
+- Wie bei jeder direkten WebRTC-Verbindung können Mitspieler technisch die **IP-Adresse** der anderen sehen –
+  also nur mit Leuten spielen, die man kennt.
+- Das Spiel läuft im Browser des **Hosts**: Wer sich mit Entwicklertools auskennt, könnte dort alle Karten sehen.
+  Alle anderen bekommen nur ihre eigene Sicht. Jeder Platz ist durch einen geheimen Schlüssel geschützt,
+  Fremde können also nicht einfach den Platz eines Offline-Spielers übernehmen.
 
 ## Regeln (Kurzfassung)
 

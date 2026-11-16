@@ -261,6 +261,20 @@ test('Sicht ist JSON-serialisierbar und verrät keine fremden verdeckten Karten'
   assert.equal(CONFIG.peekCount, v.peek === null ? 2 : v.peek.need);
 });
 
+test('Ungültige Spieler-IDs (z. B. __proto__) werden sauber abgelehnt', () => {
+  const g = createGame(P, {}, seeded());
+  readyAll(g);
+  const cur = g.turn.player;
+  g.deck.push(card(9, 'action', 'spy'));
+  applyAction(g, cur, { type: 'draw', from: 'deck' });
+  applyAction(g, cur, { type: 'useAction' });
+  for (const target of ['__proto__', 'constructor', 'toString', 42, null]) {
+    assert.throws(() => applyAction(g, cur, { type: 'spy', target, index: 0 }), RuleError);
+  }
+  assert.throws(() => applyAction(g, '__proto__', { type: 'draw' }), RuleError);
+  assert.throws(() => skipPlayer(g, '__proto__'), RuleError);
+});
+
 test('Host kann Offline-Spieler überspringen', () => {
   const g = createGame(P, {}, seeded());
   for (const p of P.slice(0, 2)) {

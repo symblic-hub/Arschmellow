@@ -63,7 +63,7 @@ try {
   await host.click('#create-form button');
   await host.waitForSelector('#lobby:not([hidden]) .code-big');
   const code = (await host.textContent('.code-big')).trim();
-  check(/^[A-Z0-9]{4}$/.test(code), `Raumcode ${code}`);
+  check(/^[A-Z0-9]{6}$/.test(code), `Raumcode ${code}`);
 
   for (const name of ['Ben', 'Cem']) {
     const p = await newPlayer(name);
@@ -177,6 +177,17 @@ try {
   v = await view(host);
   check(v.game.roundResult.caller === (await view(caller)).game.me, 'Mayhem-Ruf beendet Runde 2');
   await caller.screenshot({ path: path.join(shotDir, '6-mayhem.png') });
+
+  // Fremder mit gleichem Namen darf den Platz eines Offline-Spielers NICHT übernehmen
+  await pages[1].context().close();
+  await host.waitForFunction(() => window.mm.view.room.players.some((p) => !p.connected));
+  const intruder = await newPlayer('Fake-Ben');
+  await intruder.goto(`${BASE}&join=${code}`);
+  await intruder.fill('#name', 'Ben');
+  await intruder.click('#join-form button');
+  await intruder.waitForSelector('.toast.error');
+  check(await intruder.isVisible('#home'), 'Fremder mit gleichem Namen wird abgewiesen');
+  pages.splice(pages.indexOf(intruder), 1);
 
   // Handy-Ansicht
   const mob = await browser.newContext({ viewport: { width: 390, height: 844 } });

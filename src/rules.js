@@ -37,6 +37,9 @@ export class RuleError extends Error {}
 
 const fail = (msg) => { throw new RuleError(msg); };
 
+/** Nur echte Spieler-IDs – keine geerbten Objekt-Schlüssel wie "__proto__". */
+const hasPlayer = (state, id) => typeof id === 'string' && Object.hasOwn(state.hands, id);
+
 // ---------------------------------------------------------------- Deck
 
 export function buildDeck(config = CONFIG) {
@@ -165,7 +168,7 @@ function hiddenIndex(hand, index, what = 'Karte') {
  * action: { type, ... }
  */
 export function applyAction(state, pid, action, rng = Math.random) {
-  if (!state.hands[pid]) fail('Du spielst in dieser Partie nicht mit.');
+  if (!hasPlayer(state, pid)) fail('Du spielst in dieser Partie nicht mit.');
   const type = action?.type;
 
   // --- Ansehen-Phase
@@ -321,7 +324,7 @@ export function applyAction(state, pid, action, rng = Math.random) {
     case 'spy': {
       if (type !== 'spy') fail('Wähle eine verdeckte Karte zum Ansehen.');
       const target = action.target;
-      if (!state.hands[target]) fail('Unbekannter Spieler.');
+      if (!hasPlayer(state, target)) fail('Unbekannter Spieler.');
       const i = hiddenIndex(state.hands[target], action.index);
       state.private[pid] = { spy: { target, index: i, card: state.hands[target][i].card } };
       state.discard.push(t.drawn);
@@ -343,7 +346,7 @@ export function applyAction(state, pid, action, rng = Math.random) {
     case 'swap': {
       if (type !== 'swap') fail('Wähle eine eigene und eine fremde verdeckte Karte.');
       const target = action.target;
-      if (target === pid || !state.hands[target]) fail('Wähle einen Mitspieler.');
+      if (target === pid || !hasPlayer(state, target)) fail('Wähle einen Mitspieler.');
       const mi = hiddenIndex(hand, action.myIndex, 'eigene Karte');
       const ti = hiddenIndex(state.hands[target], action.theirIndex, 'fremde Karte');
       const theirs = state.hands[target][ti];
@@ -386,6 +389,7 @@ function advance(state) {
 
 /** Host-Notfall: Zug eines (offline) Spielers überspringen bzw. ihn in der Ansehen-Phase auf „bereit“ setzen. */
 export function skipPlayer(state, pid) {
+  if (!hasPlayer(state, pid)) fail('Unbekannter Spieler.');
   if (state.phase === 'peek') {
     const pk = state.peek[pid];
     if (!pk || pk.ready) fail('Dieser Spieler ist schon bereit.');
