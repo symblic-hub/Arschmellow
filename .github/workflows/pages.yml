@@ -36,7 +36,7 @@ jobs:
         run: |
           mkdir _site
           cp -r index.html style.css src _site/
-          mkdir _site/assets && cp assets/*.png _site/assets/
+          cp -r assets _site/ && rm -f _site/assets/*.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

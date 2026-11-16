@@ -1,3 +1,6 @@
+import * as fx from './fx.js';
+import * as sound from './sound.js';
+
 // Marshmellow Mayhem – Darstellung & Interaktion.
 // render(view) zeichnet alles neu; Klicks gehen über handlers.act(action).
 
@@ -54,33 +57,92 @@ function mallowSVG(v) {
 }
 
 export function cardFace(card) {
+  const v = num(card.value);
+  const name = esc(card.name);
+  const longName = String(card.name).length > 9 ? ' long' : '';
   if (card.kind === 'action') {
     const m = ACTION_META[card.action] ?? { icon: '❓', color: '#888', hint: '' };
-    return `<div class="card front action" style="--accent:${m.color}" title="${esc(m.hint)}">
-      <span class="corner tl">${num(card.value)}</span>
-      <div class="art action-art"><span>${m.icon}</span></div>
-      <div class="cname${String(card.name).length > 9 ? ' long' : ''}">${esc(card.name)}</div>
+    return `<div class="card front action act-${esc(card.action)}" style="--accent:${m.color}" title="${esc(m.hint)}">
+      <div class="card-inner">
+        <span class="corner tl">${v}</span>
+        <div class="art action-art"><span class="icon">${m.icon}</span></div>
+        <div class="ribbon${longName}">${name}</div>
+      </div>
     </div>`;
   }
-  const cls = card.value < 0 ? 'special' : card.value >= 7 ? 'burnt' : '';
-  return `<div class="card front number ${cls}" style="--roast:${ROAST[Math.max(0, Math.min(8, card.value))]}">
-    <span class="corner tl">${num(card.value)}</span>
-    <div class="art">${mallowSVG(card.value)}</div>
-    <div class="cname${String(card.name).length > 9 ? ' long' : ''}">${esc(card.name)}</div>
+  const tier = v < 0 ? 'special' : v >= 7 ? 'burnt' : v >= 4 ? 'toasty' : 'fresh';
+  return `<div class="card front number ${tier}" style="--roast:${ROAST[Math.max(0, Math.min(8, v))]}">
+    <div class="card-inner">
+      <span class="corner tl">${v}</span>
+      <div class="art">${mallowSVG(v)}</div>
+      <div class="ribbon${longName}">${name}</div>
+    </div>
   </div>`;
 }
 
+const EMBLEM = `<svg viewBox="0 0 60 60" aria-hidden="true"><rect x="10" y="16" width="40" height="34" rx="13" fill="#fff4e6" stroke="rgba(120,40,70,.35)" stroke-width="2"/><ellipse cx="30" cy="20" rx="16" ry="4.5" fill="#fff" opacity=".7"/><circle cx="24" cy="32" r="2.6" fill="#7a2050"/><circle cx="36" cy="32" r="2.6" fill="#7a2050"/><path d="M24 39 Q30 45 36 39" fill="none" stroke="#7a2050" stroke-width="2.6" stroke-linecap="round"/></svg>`;
+
 export function cardBack() {
-  return `<div class="card back"><div class="back-art"><span>M</span><span>M</span></div></div>`;
+  return `<div class="card back"><div class="back-inner"><div class="emblem">${EMBLEM}</div></div></div>`;
 }
 
-function slotHTML(slot, { pid, index, clickable, selected, size = '', animKey = '' }) {
+const MARK_LABEL = { new: '✨ neu', penalty: '⚠ Strafe', swap: '🔄 getauscht', reveal: '⬆ aufgedeckt', spy: '👀 gespickt' };
+
+function slotHTML(slot, { pid, index, clickable, selected, size = '', animKey = '', mark = null }) {
   const inner = slot.card ? cardFace(slot.card) : cardBack();
-  const anim = slot.card && animKey && once(`${animKey}:${pid}:${index}:${slot.card.id}:${slot.up}`) ? 'anim' : '';
+  // Umdreh-Animation nur beim Ansehen und beim Aufdecken am Rundenende (sonst macht das fx.js)
+  const anim = slot.card && animKey && (slot.peeking || slot.revealedAtEnd) && once(`${animKey}:${pid}:${index}:${slot.card.id}`) ? 'anim' : '';
   const classes = ['slot', size, clickable ? 'clickable' : '', selected ? 'selected' : '', slot.peeking ? 'peeking' : '',
-    slot.up ? 'is-up' : '', slot.revealedAtEnd ? 'end-reveal' : '', anim].filter(Boolean).join(' ');
+    slot.up ? 'is-up' : '', slot.revealedAtEnd ? 'end-reveal' : '', anim, mark ? `marked mark-${mark}` : ''].filter(Boolean).join(' ');
   const tag = clickable ? 'button' : 'div';
-  return `<${tag} class="${classes}" ${clickable ? `data-card="${esc(pid)}:${index}"` : ''} aria-label="Karte ${index + 1}">${inner}</${tag}>`;
+  const badge = mark && size !== 'xs' ? `<span class="mark-badge">${MARK_LABEL[mark]}</span>` : '';
+  return `<${tag} class="${classes}" data-slot="${esc(pid)}:${index}" ${clickable ? `data-card="${esc(pid)}:${index}"` : ''} aria-label="Karte ${index + 1}">${inner}${badge}</${tag}>`;
+}
+
+/** Welche Karten wurden im letzten und im aktuellen Zug bewegt? → dauerhafte Markierung. */
+function computeMarks(g) {
+  const evs = g.events || [];
+  let start = 0;
+  let turns = 0;
+  for (let k = evs.length - 1; k >= 0; k--) {
+    if (evs[k].type === 'round') { start = k + 1; break; }
+    if (evs[k].type === 'turn' && ++turns === 2) { start = k + 1; break; }
+  }
+  const marks = new Map();
+  const put = (pid, i, kind) => marks.set(`${pid}:${i}`, kind);
+  for (const e of evs.slice(start)) {
+    if (e.type === 'replace') put(e.p, e.i, 'new');
+    else if (e.type === 'set') {
+      // Positionen verschieben sich – alte Markierungen dieses Spielers verwerfen
+      for (const k of [...marks.keys()]) if (k.startsWith(`${e.p}:`)) marks.delete(k);
+      put(e.p, e.newIndex, e.ok ? 'new' : 'penalty');
+    } else if (e.type === 'swap') { put(e.p, e.i, 'swap'); put(e.target, e.j, 'swap'); }
+    else if (e.type === 'reveal') put(e.p, e.i, 'reveal');
+    else if (e.type === 'spy') put(e.target, e.i, 'spy');
+  }
+  return marks;
+}
+
+/** Kurztext für den Aktions-Ticker. */
+function eventText(e, nameOf) {
+  const n = (pid) => esc(nameOf(pid));
+  const c = (card) => (card ? `<b>${esc(card.name)} (${num(card.value)})</b>` : '');
+  switch (e.type) {
+    case 'draw': return e.from === 'discard' ? `🃏 ${n(e.p)} nimmt ${c(e.card)} von der Ablage` : `🂠 ${n(e.p)} zieht vom Stapel`;
+    case 'replace': return `🔁 ${n(e.p)} legt die Karte auf Platz ${num(e.i) + 1} – weg ist ${c(e.out)}`;
+    case 'reject': return `✋ ${n(e.p)} lehnt ${c(e.card)} ab`;
+    case 'reveal': return `⬆ ${n(e.p)} deckt ${c(e.card)} auf (Platz ${num(e.i) + 1})`;
+    case 'set': return e.ok
+      ? `✨ ${n(e.p)} wird ${e.idx.length} Karten los – neue Karte auf <b>Platz ${num(e.newIndex) + 1}</b>`
+      : `😬 ${n(e.p)} lag falsch – <b>Strafkarte auf Platz ${num(e.newIndex) + 1}</b>`;
+    case 'spy': return `👀 ${n(e.p)} spickt bei ${e.target === e.p ? 'sich selbst' : n(e.target)} (Platz ${num(e.i) + 1})`;
+    case 'swap': return `🔄 ${n(e.p)} tauscht Platz ${num(e.i) + 1} mit ${n(e.target)}s Platz ${num(e.j) + 1}`;
+    case 'again': return `⏩ ${n(e.p)} bekommt 2 Extra-Züge`;
+    case 'call': return `🔥 ${n(e.p)} ruft <b>MAYHEM!</b>`;
+    case 'reshuffle': return '🔀 Ablage wird neu gemischt';
+    case 'skip': return `⏭ ${n(e.p)} wird übersprungen`;
+    default: return null;
+  }
 }
 
 // ---------------------------------------------------------------- Setup
@@ -105,8 +167,17 @@ export function init(h) {
     handlers.join(code, name);
   });
   document.addEventListener('keydown', (e) => {
+    sound.unlock();
     if (e.key === 'Escape') closeModal();
   });
+  updateMuteButtons();
+}
+
+function updateMuteButtons() {
+  for (const b of document.querySelectorAll('[data-ui="mute"]')) {
+    b.textContent = sound.isMuted() ? '🔇' : '🔊';
+    b.title = sound.isMuted() ? 'Ton einschalten' : 'Ton ausschalten';
+  }
 }
 
 export function showScreen(name) {
@@ -127,6 +198,8 @@ export function setStatus(text, kind = '') {
 }
 
 export function toast(msg, kind = '') {
+  if (kind === 'error') sound.play('error');
+  else if (/ist da/.test(msg)) sound.play('join');
   const el = document.createElement('div');
   el.className = `toast ${kind}`;
   el.textContent = msg;
@@ -152,6 +225,7 @@ function closeModal() {
 function act(action) { handlers.act(action); }
 
 function onClick(e) {
+  sound.unlock();
   const btn = e.target.closest('[data-act],[data-card],[data-pile],[data-ui]');
   if (!btn || btn.disabled) return;
   const v = current;
@@ -204,6 +278,12 @@ function uiAction(what, btn) {
   if (what === 'set-mode') { sel.mode = 'set'; sel.set = []; return rerender(); }
   if (what === 'set-cancel') { sel.mode = null; sel.set = []; return rerender(); }
   if (what === 'rules') return openModal(RULES_HTML, 'wide');
+  if (what === 'mute') {
+    sound.setMuted(!sound.isMuted());
+    updateMuteButtons();
+    if (!sound.isMuted()) sound.play('click');
+    return;
+  }
   if (what === 'close-modal') return closeModal();
   if (what === 'copy-link') {
     const link = btn.dataset.link;
@@ -221,17 +301,37 @@ export const getView = () => current;
 
 // ---------------------------------------------------------------- Render
 
+let lastSeq = null;
+
 export function render(view) {
+  const prevRects = fx.snapshot();
   current = view;
   if (!view.room) return;
   $('#room-code').textContent = view.room.code;
   if (!view.game) {
+    lastSeq = null;
     showScreen('lobby');
     renderLobby(view);
     return;
   }
   showScreen('game');
   renderGame(view);
+
+  // Neue Ereignisse animieren (beim ersten Laden nichts nachspielen)
+  const evs = view.game.events || [];
+  const maxSeq = evs.length ? evs[evs.length - 1].seq : 0;
+  if (lastSeq === null || maxSeq < lastSeq) { lastSeq = maxSeq; return; }
+  const fresh = evs.filter((e) => e.seq > lastSeq);
+  lastSeq = maxSeq;
+  if (!fresh.length) return;
+  const g = view.game;
+  fx.play(fresh, prevRects, view, {
+    me: g.me,
+    nameOf: (pid) => g.players.find((p) => p.id === pid)?.name ?? '?',
+    cardFace,
+    cardBack,
+    toast,
+  });
 }
 
 function inviteLink(code) {
@@ -317,13 +417,15 @@ function renderGame(view) {
     return ['decide', 'spy', 'reveal', 'swap'].includes(step);
   };
   const oppClickable = (slot) => !slot.up && (step === 'spy' || step === 'swap');
+  const marks = computeMarks(g);
+  const nameOf = (pid) => g.players.find((p) => p.id === pid)?.name ?? '?';
 
   // Mitspieler
   const others = rotateFrom(g.players, g.me).filter((p) => p.id !== g.me);
   $('#opponents').innerHTML = others.map((p) => {
     const cols = Math.min(3, Math.ceil(p.hand.length / 2)) || 1;
     const active = t?.player === p.id;
-    return `<div class="opp ${active ? 'active' : ''} ${connected[p.id] === false ? 'offline' : ''}">
+    return `<div class="opp ${active ? 'active' : ''} ${connected[p.id] === false ? 'offline' : ''}" data-player="${esc(p.id)}">
       <div class="opp-head">
         <span class="avatar">${esc(p.name.slice(0, 1).toUpperCase())}</span>
         <span class="pname">${esc(p.name)}</span>
@@ -335,7 +437,7 @@ function renderGame(view) {
           ? `<button class="mini" data-act="skip" data-pid="${esc(p.id)}" title="Spieler ist offline">Überspringen</button>` : ''}
       </div>
       <div class="hand sm" style="--cols:${num(cols)}">
-        ${p.hand.map((s, i) => slotHTML(s, { pid: p.id, index: i, size: 'sm', clickable: oppClickable(s), animKey: `r${g.round}`,
+        ${p.hand.map((s, i) => slotHTML(s, { pid: p.id, index: i, size: 'sm', clickable: oppClickable(s), animKey: `r${g.round}`, mark: marks.get(`${p.id}:${i}`),
           selected: sel.swapTheirs && sel.swapTheirs.pid === p.id && sel.swapTheirs.index === i })).join('')}
       </div>
       <div class="opp-foot">Gesamt: <b>${num(p.total)}</b> · offen: ${num(p.openSum)}</div>
@@ -344,16 +446,15 @@ function renderGame(view) {
 
   // Mitte: Stapel
   const canDraw = myTurn && step === 'start';
-  const deckEl = `<${canDraw ? 'button' : 'div'} class="pile deck ${canDraw ? 'clickable' : ''}" ${canDraw ? 'data-pile="deck"' : ''}>
+  const deckEl = `<${canDraw ? 'button' : 'div'} id="pile-deck" class="pile deck ${canDraw ? 'clickable' : ''}" ${canDraw ? 'data-pile="deck"' : ''}>
       ${cardBack()}<span class="pile-label">Stapel · ${num(g.deckCount)}</span></${canDraw ? 'button' : 'div'}>`;
   const canDiscard = canDraw && g.discardTop;
-  const discardEl = `<${canDiscard ? 'button' : 'div'} class="pile discard ${canDiscard ? 'clickable' : ''}" ${canDiscard ? 'data-pile="discard"' : ''}>
+  const discardEl = `<${canDiscard ? 'button' : 'div'} id="pile-discard" class="pile discard ${canDiscard ? 'clickable' : ''}" ${canDiscard ? 'data-pile="discard"' : ''}>
       ${g.discardTop ? cardFace(g.discardTop) : '<div class="card empty"></div>'}<span class="pile-label">Ablage</span></${canDiscard ? 'button' : 'div'}>`;
   let drawnEl = '';
   if (t?.hasDrawn) {
-    const fresh = once(`drawn:${g.round}:${t.player}:${t.step === 'decide' ? 'd' : t.step}:${t.drawn?.id ?? 'x'}:${g.deckCount}`);
-    drawnEl = `<div class="pile drawn"><div class="drawn-glow ${fresh ? 'anim' : ''}">${t.drawn ? cardFace(t.drawn) : cardBack()}</div>
-      <span class="pile-label">${myTurn ? 'Deine Karte' : 'gezogen'}</span></div>`;
+    drawnEl = `<div id="pile-drawn" class="pile drawn"><div class="drawn-glow">${t.drawn ? cardFace(t.drawn) : cardBack()}</div>
+      <span class="pile-label">${myTurn ? 'Deine Karte' : `${esc(nameOf(t.player))}s Karte`}</span></div>`;
   }
   $('#piles').innerHTML = deckEl + discardEl + drawnEl;
 
@@ -371,13 +472,13 @@ function renderGame(view) {
     }
   } else if (g.phase === 'turn') {
     if (!myTurn) {
-      prompt = stepText(g, curPlayer);
+      prompt = '';
     } else if (sel.mode === 'set') {
       prompt = 'Markiere deine <b>verdeckten</b> Karten: mind. <b>3 gleiche Zahlenkarten</b> oder <b>2 gleiche Aktionskarten</b>. Sie werden alle gegen deine neue Karte getauscht. Liegst du falsch, bleibt die neue Karte als <b>Strafkarte</b> liegen!';
       buttons = `<button class="primary" data-act="set-confirm" ${sel.set.length >= 2 ? '' : 'disabled'}>Loswerden (${num(sel.set.length)})</button>
         <button class="ghost" data-ui="set-cancel">Abbrechen</button>`;
     } else if (step === 'start') {
-      prompt = `<b>Du bist dran${t.extraTurns ? ` (danach noch ${num(t.extraTurns)} Extra-Zug${t.extraTurns > 1 ? 'züge' : ''})` : ''}!</b> Zieh vom Stapel oder nimm die Ablagekarte.`;
+      prompt = 'Zieh vom <b>Stapel</b> oder nimm die <b>Ablagekarte</b>.';
       if (!g.final) prompt += ' Oder ruf <b>„MAYHEM!“</b>, wenn du glaubst, die wenigsten Punkte zu haben.';
       buttons = g.final ? '' : '<button class="mayhem" data-act="call">🔥 MAYHEM! rufen</button>';
     } else if (step === 'decide') {
@@ -408,16 +509,30 @@ function renderGame(view) {
     banner = `<div class="final-banner">⏳ <b>Letzte Züge!</b> ${esc(ender?.name)} ${g.final.caller ? 'hat „MAYHEM!“ gerufen' : 'hat nur noch offene Karten'} – alle anderen haben noch einen Zug.</div>`;
   }
   $('#prompt').innerHTML = `${banner}<div class="prompt-text">${prompt}</div><div class="prompt-buttons">${buttons}</div>`;
-  $('#prompt').classList.toggle('mine', !!myTurn || (g.phase === 'peek' && !g.peek.ready));
+  $('#prompt').classList.toggle('myturn', !!myTurn || (g.phase === 'peek' && !g.peek.ready));
+  $('#prompt').hidden = !banner && !prompt && !buttons.trim();
 
-  // Letzte Aktion
-  const last = g.log[g.log.length - 1];
-  $('#lastlog').textContent = last ? last.text : '';
+  // Wer ist dran? – großes Banner
+  let bar = '';
+  if (g.phase === 'peek') {
+    bar = '<div class="turnbar peek">👀 <b>Merkt euch eure Karten!</b> <span class="muted">Jeder sieht sich 2 eigene Karten an.</span></div>';
+  } else if (g.phase === 'turn' && curPlayer) {
+    const extra = t.extraTurns ? `<span class="badge">+${num(t.extraTurns)} Extra-Zug</span>` : '';
+    const last = g.final ? '<span class="badge call">letzter Zug</span>' : '';
+    bar = myTurn
+      ? `<div class="turnbar myturn"><span class="avatar">${esc(me.name.slice(0, 1).toUpperCase())}</span><b>Du bist dran!</b> ${extra}${last}</div>`
+      : `<div class="turnbar"><span class="avatar">${esc(curPlayer.name.slice(0, 1).toUpperCase())}</span><span>${stepText(g, curPlayer)}</span> ${extra}${last}</div>`;
+  }
+  $('#turnbar').innerHTML = bar;
+
+  // Aktions-Ticker: die letzten Ereignisse
+  const items = (g.events || []).map((e) => eventText(e, nameOf)).filter(Boolean).slice(-3).reverse();
+  $('#ticker').innerHTML = items.map((text, k) => `<li class="${k === 0 ? 'latest' : ''}">${text}</li>`).join('');
 
   // Eigene Hand
   const cols = Math.min(3, Math.ceil(me.hand.length / 2)) || 1;
   $('#myhand').innerHTML = `<div class="hand" style="--cols:${num(cols)}">
-    ${me.hand.map((s, i) => slotHTML(s, { pid: g.me, index: i, clickable: myClickable(s), animKey: `r${g.round}${s.peeking ? 'p' : ''}`,
+    ${me.hand.map((s, i) => slotHTML(s, { pid: g.me, index: i, clickable: myClickable(s), animKey: `r${g.round}${s.peeking ? 'p' : ''}`, mark: marks.get(`${g.me}:${i}`),
       selected: (sel.mode === 'set' && sel.set.includes(i)) || sel.swapMine === i })).join('')}
   </div>`;
   $('#myinfo').innerHTML = `<span class="avatar">${esc(me.name.slice(0, 1).toUpperCase())}</span>
@@ -425,6 +540,7 @@ function renderGame(view) {
     ${g.final?.caller === g.me ? '<span class="badge call">🔥 gerufen</span>' : ''}
     <span class="muted">Gesamt: <b>${num(me.total)}</b> · offen: ${num(me.openSum)}</span>`;
   $('#mine').classList.toggle('active', !!myTurn);
+  $('#mine').dataset.player = g.me;
 
   // Kopfzeile
   $('#round-info').textContent = `Runde ${g.round} / ${g.rounds}`;
@@ -445,7 +561,7 @@ function renderGame(view) {
       <button class="primary big" data-act="ack">Gemerkt!</button>`, 'spy');
   } else if (g.phase === 'roundEnd' || g.phase === 'gameOver') {
     m.dataset.locked = '1';
-    openModal(roundEndHTML(view), 'wide');
+    openModal(roundEndHTML(view), 'wide roundend');
   } else if (m.dataset.locked === '1') {
     m.dataset.locked = '0';
     m.hidden = true;

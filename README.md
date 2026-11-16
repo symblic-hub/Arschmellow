@@ -19,6 +19,12 @@ Der Server hält den Spielstand und schickt jedem nur das, was er sehen darf –
   (z. B. nächste Runde, Offline-Spieler überspringen).
 - Räume ohne Aktivität werden nach 24 Stunden automatisch gelöscht.
 
+## Sound & Animationen
+
+- Jede Aktion hat einen eigenen Sound (live im Browser erzeugt) – ausschalten mit 🔊 oben rechts.
+- Karten fliegen sichtbar vom Stapel in die Hand, auf die Ablage und beim Tauschen zwischen den Spielern.
+- Was im letzten Zug passiert ist, bleibt markiert (✨ neu, 🔄 getauscht, ⚠ Strafe, 👀 gespickt) und steht im Ticker.
+
 ## Datenschutz & Sicherheit
 
 - Keine Konten. Im Browser gespeichert werden nur dein Name und ein geheimer Schlüssel für deinen Platz im Raum.
@@ -92,5 +98,7 @@ npm run e2e           # Browser-Test: 3 Spieler gegen den lokalen Server (Playwr
 | `server/worker.js` | Cloudflare Worker + Durable Object (ein Raum = ein Objekt), WebSockets |
 | `src/net.js` | WebSocket-Verbindung zum Server, Raumcodes |
 | `src/main.js` | Raum-Sitzung im Browser: Verbinden, Zeitlimit, automatisches Neuverbinden |
-| `src/ui.js` | Darstellung, Karten-Grafiken, Klick-Abläufe |
-| `assets/` | Pixel-Art-Icons (`make_icon.py` erzeugt sie) |
+| `src/ui.js` | Darstellung, Karten-Grafiken, Klick-Abläufe, Markierungen |
+| `src/fx.js` | Animationen (fliegende Karten, Umdrehen, Hervorhebungen) |
+| `src/sound.js` | Soundeffekte (Web Audio API) |
+| `assets/` | Pixel-Art-Icons (`make_icon.py`), Schrift Fredoka (SIL OFL) |

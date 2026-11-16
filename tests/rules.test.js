@@ -404,3 +404,63 @@ test('Host kann Offline-Spieler überspringen', () => {
   assert.notEqual(g.turn.player, cur);
   assert.throws(() => skipPlayer(g, cur), RuleError);
 });
+
+test('Ereignisse: jeder Zug erzeugt passende, öffentliche Ereignisse', () => {
+  const g = createGame(P, {}, seeded(21));
+  readyAll(g);
+  const cur = g.turn.player;
+  const seqStart = g.evSeq;
+  applyAction(g, cur, { type: 'draw', from: 'deck' });
+  applyAction(g, cur, { type: 'replace', index: 2 });
+  const evs = g.events.filter((e) => e.seq > seqStart);
+  assert.deepEqual(evs.map((e) => e.type), ['draw', 'replace', 'turn']);
+  assert.equal(evs[0].card, undefined, 'Stapelkarte bleibt geheim');
+  assert.equal(evs[1].i, 2);
+  assert.ok(evs[1].out, 'abgelegte Karte ist öffentlich');
+  assert.equal(evs[2].p, g.turn.player);
+  // Sicht enthält die Ereignisse, ohne verdeckte Werte
+  const v = viewFor(g, P.find((p) => p.id !== cur).id);
+  assert.ok(v.events.length > 0);
+  for (const e of v.events) {
+    if (e.type === 'draw' && e.from === 'deck') assert.equal(e.card, undefined);
+    if (e.type === 'replace') assert.equal(e.in, undefined);
+  }
+});
+
+test('Ereignisse: Karten loswerden meldet neue Position, Tausch meldet beide Plätze', () => {
+  const g = createGame(P, {}, seeded(22));
+  readyAll(g);
+  const cur = g.turn.player;
+  setHand(g, cur, [4, 4, 7, 4, 2, 1]);
+  applyAction(g, cur, { type: 'draw', from: 'deck' });
+  applyAction(g, cur, { type: 'set', indices: [0, 1, 3] });
+  const set = g.events.findLast((e) => e.type === 'set');
+  assert.equal(set.ok, true);
+  assert.deepEqual(set.idx, [0, 1, 3]);
+  assert.equal(set.newIndex, 3, 'neue Karte liegt an Position 4');
+
+  const g2 = createGame(P, {}, seeded(23));
+  readyAll(g2);
+  const c2 = g2.turn.player;
+  const other = P.find((p) => p.id !== c2).id;
+  g2.deck.push(card(10, 'action', 'swap'));
+  applyAction(g2, c2, { type: 'draw', from: 'deck' });
+  applyAction(g2, c2, { type: 'useAction' });
+  applyAction(g2, c2, { type: 'swap', myIndex: 1, target: other, theirIndex: 4 });
+  const sw = g2.events.findLast((e) => e.type === 'swap');
+  assert.deepEqual([sw.p, sw.i, sw.target, sw.j], [c2, 1, other, 4]);
+  assert.equal(sw.card.action, 'swap', 'nur die Aktionskarte wird gezeigt');
+});
+
+test('Ereignisse: MAYHEM-Ruf und Rundenende', () => {
+  const g = createGame(P.slice(0, 2), {}, seeded(24));
+  readyAll(g);
+  const cur = g.turn.player;
+  applyAction(g, cur, { type: 'call' });
+  const types = g.events.slice(-3).map((e) => e.type);
+  assert.deepEqual(types, ['call', 'final', 'turn']);
+  const o = g.turn.player;
+  applyAction(g, o, { type: 'draw', from: 'deck' });
+  applyAction(g, o, { type: 'replace', index: 0 });
+  assert.equal(g.events.at(-1).type, 'roundEnd');
+});

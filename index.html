@@ -43,6 +43,7 @@
       <div class="brand">Marshmellow <span>Mayhem</span></div>
       <div class="room">Raum <b id="room-code"></b></div>
       <div class="top-actions">
+        <button class="ghost icon-btn" data-ui="mute" title="Ton aus">🔊</button>
         <button class="ghost" data-ui="rules">📖 Regeln</button>
         <button class="ghost" data-ui="leave">Verlassen</button>
       </div>
@@ -56,18 +57,20 @@
       <div class="brand">Marshmellow <span>Mayhem</span></div>
       <div class="room" id="round-info"></div>
       <div class="top-actions">
+        <button class="ghost icon-btn" data-ui="mute" title="Ton aus">🔊</button>
         <button class="ghost" data-ui="rules">📖 Regeln</button>
         <button class="ghost" data-ui="leave">Verlassen</button>
       </div>
     </header>
     <div class="table-wrap">
       <section class="table">
+        <div id="turnbar" class="turnbar-wrap"></div>
         <div id="opponents" class="opponents"></div>
         <div class="center">
           <div id="piles" class="piles"></div>
           <div class="center-info">
             <div id="prompt" class="prompt"></div>
-            <div id="lastlog" class="lastlog"></div>
+            <ol id="ticker" class="ticker"></ol>
           </div>
         </div>
         <div id="mine" class="mine">

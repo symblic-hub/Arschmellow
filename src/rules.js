@@ -89,6 +89,8 @@ export function createGame(players, options = {}, rng = Math.random) {
     starter: null,
     log: [],
     seq: 0,
+    events: [],
+    evSeq: 0,
   };
   const first = players[Math.floor(rng() * players.length)].id;
   startRound(state, first, rng);
@@ -119,7 +121,15 @@ function startRound(state, starter, rng) {
   state.roundResult = null;
   state.caller = null;
   state.final = null; // { ender, caller } sobald die letzten Züge laufen
+  emit(state, { type: 'round', round: state.round });
   log(state, `Runde ${state.round} beginnt. Schaut euch je ${CONFIG.peekCount} eurer Karten an!`);
+}
+
+/** Öffentliches Ereignis für Animationen/Sounds (nie verdeckte Kartenwerte!). */
+function emit(state, ev) {
+  if (!state.events) { state.events = []; state.evSeq = 0; }
+  state.events.push({ seq: ++state.evSeq, ...ev });
+  if (state.events.length > 40) state.events.splice(0, state.events.length - 40);
 }
 
 function log(state, text) {
@@ -152,6 +162,7 @@ function drawFromDeck(state, rng) {
     state.discard = [];
     if (state.deck.length > 1) state.discard.push(state.deck.pop());
     log(state, 'Der Nachziehstapel ist leer – die Ablage wird gemischt und neu aufgedeckt.');
+    emit(state, { type: 'reshuffle' });
   }
   return state.deck.pop() ?? null;
 }
@@ -201,6 +212,7 @@ export function applyAction(state, pid, action, rng = Math.random) {
         state.phase = 'turn';
         newTurn(state, state.starter);
         log(state, `Alle bereit! ${nameOf(state, state.starter)} beginnt.`);
+        emit(state, { type: 'turn', p: state.starter, extra: false });
       }
       return state;
     }
@@ -235,6 +247,8 @@ export function applyAction(state, pid, action, rng = Math.random) {
         state.caller = pid;
         state.final = { ender: pid, caller: pid };
         log(state, `🔥 ${me} ruft „MAYHEM!“ – alle anderen haben noch einen letzten Zug.`);
+        emit(state, { type: 'call', p: pid });
+        emit(state, { type: 'final', ender: pid, caller: pid });
         endTurn(state, { noExtra: true });
         return state;
       }
@@ -244,6 +258,7 @@ export function applyAction(state, pid, action, rng = Math.random) {
           t.drawn = state.discard.pop();
           t.drawnFrom = 'discard';
           log(state, `${me} nimmt ${cardLabel(t.drawn)} von der Ablage.`);
+          emit(state, { type: 'draw', p: pid, from: 'discard', card: t.drawn });
         } else {
           const c = drawFromDeck(state, rng);
           if (!c) {
@@ -254,6 +269,7 @@ export function applyAction(state, pid, action, rng = Math.random) {
           t.drawn = c;
           t.drawnFrom = 'deck';
           log(state, `${me} zieht eine Karte vom Stapel.`);
+          emit(state, { type: 'draw', p: pid, from: 'deck' });
         }
         t.step = 'decide';
         return state;
@@ -268,6 +284,7 @@ export function applyAction(state, pid, action, rng = Math.random) {
         hand[i] = { card: t.drawn, up: false };
         state.discard.push(old);
         log(state, `${me} tauscht Karte ${i + 1} aus – weg ist ${cardLabel(old)}.`);
+        emit(state, { type: 'replace', p: pid, i, out: old, from: t.drawnFrom });
         t.drawn = null;
         endTurn(state);
         return state;
@@ -283,9 +300,11 @@ export function applyAction(state, pid, action, rng = Math.random) {
           cards.forEach((c) => state.discard.push(c));
           hand.push({ card: t.drawn, up: false });
           log(state, `✨ ${me} wird ${idx.length} gleiche Karten los: ${shown}. Die neue Karte kommt verdeckt dazu.`);
+          emit(state, { type: 'set', p: pid, idx, cards, ok: true, newIndex: hand.length - 1 });
         } else {
           hand.push({ card: t.drawn, up: false });
           log(state, `😬 ${me} wollte Karten loswerden, aber sie passen nicht: ${shown}. Die neue Karte bleibt als Strafkarte liegen!`);
+          emit(state, { type: 'set', p: pid, idx, cards, ok: false, newIndex: hand.length - 1 });
         }
         t.drawn = null;
         endTurn(state);
@@ -294,6 +313,7 @@ export function applyAction(state, pid, action, rng = Math.random) {
       if (type === 'reject') {
         state.discard.push(t.drawn);
         log(state, `${me} lehnt ${cardLabel(t.drawn)} ab.`);
+        emit(state, { type: 'reject', p: pid, card: t.drawn });
         t.drawn = null;
         if (hasHidden(hand)) t.step = 'reveal';
         else endTurn(state);
@@ -306,17 +326,20 @@ export function applyAction(state, pid, action, rng = Math.random) {
         if (a === 'spy') {
           t.step = 'spy';
           log(state, `👀 ${me} spielt „Spicken“.`);
+          emit(state, { type: 'action', p: pid, action: 'spy' });
         } else if (a === 'swap') {
           if (!hasHidden(hand)) fail('Du hast keine verdeckte Karte mehr zum Tauschen.');
           const others = state.players.filter((p) => p.id !== pid && hasHidden(state.hands[p.id]));
           if (others.length === 0) fail('Niemand hat noch verdeckte Karten zum Tauschen.');
           t.step = 'swap';
           log(state, `🔄 ${me} spielt „Tauschen“.`);
+          emit(state, { type: 'action', p: pid, action: 'swap' });
         } else if (a === 'again') {
           state.discard.push(t.drawn);
           t.drawn = null;
           t.extraTurns += CONFIG.extraTurnsForAgain;
           log(state, `⏩ ${me} spielt „Nochmal!“ und bekommt ${CONFIG.extraTurnsForAgain} Extra-Züge.`);
+          emit(state, { type: 'again', p: pid, card: state.discard[state.discard.length - 1] });
           endTurn(state);
         }
         return state;
@@ -336,6 +359,7 @@ export function applyAction(state, pid, action, rng = Math.random) {
       log(state, target === pid
         ? `${me} spickt bei der eigenen Karte ${i + 1}.`
         : `${me} spickt bei ${nameOf(state, target)} (Karte ${i + 1}).`);
+      emit(state, { type: 'spy', p: pid, target, i, card: state.discard[state.discard.length - 1] });
       return state;
     }
 
@@ -358,6 +382,7 @@ export function applyAction(state, pid, action, rng = Math.random) {
       state.discard.push(t.drawn);
       t.drawn = null;
       log(state, `${me} tauscht die eigene Karte ${mi + 1} mit Karte ${ti + 1} von ${nameOf(state, target)}.`);
+      emit(state, { type: 'swap', p: pid, i: mi, target, j: ti, card: state.discard[state.discard.length - 1] });
       endTurn(state);
       return state;
     }
@@ -367,9 +392,11 @@ export function applyAction(state, pid, action, rng = Math.random) {
       const i = hiddenIndex(hand, action.index);
       hand[i].up = true;
       log(state, `${me} deckt ${cardLabel(hand[i].card)} auf – sie ist jetzt gesperrt.`);
+      emit(state, { type: 'reveal', p: pid, i, card: hand[i].card });
       if (!state.final && !hasHidden(hand)) {
         state.final = { ender: pid, caller: null };
         log(state, `${me} hat nur noch offene Karten – alle anderen haben noch einen letzten Zug.`);
+        emit(state, { type: 'final', ender: pid, caller: null });
         endTurn(state, { noExtra: true });
         return state;
       }
@@ -389,6 +416,7 @@ function endTurn(state, { noExtra = false } = {}) {
   if (!noExtra && t.extraTurns > 0) {
     newTurn(state, t.player, t.extraTurns - 1);
     log(state, `${nameOf(state, t.player)} ist nochmal dran (Extra-Zug).`);
+    emit(state, { type: 'turn', p: t.player, extra: true });
     return;
   }
   const next = nextPlayerId(state, t.player);
@@ -398,6 +426,7 @@ function endTurn(state, { noExtra = false } = {}) {
   }
   newTurn(state, next);
   if (state.final) log(state, `Letzter Zug für ${nameOf(state, next)}.`);
+  emit(state, { type: 'turn', p: next, extra: false, last: !!state.final });
 }
 
 /** Host-Notfall: Zug eines (offline) Spielers überspringen bzw. ihn in der Ansehen-Phase auf „bereit“ setzen. */
@@ -412,6 +441,7 @@ export function skipPlayer(state, pid) {
       state.phase = 'turn';
       newTurn(state, state.starter);
       log(state, `Alle bereit! ${nameOf(state, state.starter)} beginnt.`);
+      emit(state, { type: 'turn', p: state.starter, extra: false });
     }
     return state;
   }
@@ -420,6 +450,7 @@ export function skipPlayer(state, pid) {
   if (t.drawn) { state.discard.push(t.drawn); t.drawn = null; }
   delete state.private[pid];
   log(state, `Der Zug von ${nameOf(state, pid)} wird übersprungen (offline).`);
+  emit(state, { type: 'skip', p: pid });
   endTurn(state, { noExtra: true });
   return state;
 }
@@ -456,6 +487,7 @@ function endRound(state) {
       ? `💥 ${nameOf(state, state.caller)} lag daneben – Punkte verdoppelt (${raw[state.caller]} → ${scores[state.caller]})!`
       : `🏆 ${nameOf(state, state.caller)} hatte recht – niemand hat weniger Punkte!`);
   }
+  emit(state, { type: 'roundEnd', round: state.round });
   const summary = state.players.map((p) => `${p.name}: ${scores[p.id]}`).join(' · ');
   log(state, `Runde ${state.round} – ${summary}`);
 
@@ -525,5 +557,6 @@ export function viewFor(state, pid) {
     final: state.final,
     winners: state.winners ?? null,
     log: state.log.slice(-30),
+    events: (state.events || []).slice(-15),
   };
 }
