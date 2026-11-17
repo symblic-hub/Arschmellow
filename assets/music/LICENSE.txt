@@ -1,0 +1,6 @@
+„Lagerfeuer“ (campfire.mp3, campfire-tension.mp3)
+Eigene Komposition für Marshmellow Mayhem – erzeugt mit assets/music/compose.py.
+
+Gerendert mit FluidSynth und dem Soundfont „FluidR3_GM“ von Frank Wen
+(MIT-Lizenz, siehe https://github.com/FluidSynth/fluidsynth/wiki/SoundFont – Debian-Paket fluid-soundfont-gm).
+Das Lagerfeuer-Knistern ist synthetisch erzeugt.

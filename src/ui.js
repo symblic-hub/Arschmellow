@@ -1,5 +1,6 @@
 import * as fx from './fx.js';
 import * as sound from './sound.js';
+import * as music from './music.js';
 
 // Marshmellow Mayhem – Darstellung & Interaktion.
 // render(view) zeichnet alles neu; Klicks gehen über handlers.act(action).
@@ -178,13 +179,39 @@ export function init(h) {
 }
 
 function updateMuteButtons() {
+  const silent = sound.isMuted() && !music.isEnabled();
   for (const b of document.querySelectorAll('[data-ui="mute"]')) {
-    b.textContent = sound.isMuted() ? '🔇' : '🔊';
-    b.title = sound.isMuted() ? 'Ton einschalten' : 'Ton ausschalten';
+    b.textContent = silent ? '🔇' : '🔊';
+    b.title = 'Musik & Sound';
   }
 }
 
+/** Kleines Menü unter dem 🔊-Knopf: Musik (mit Lautstärke) und Soundeffekte getrennt schaltbar. */
+function toggleSoundMenu(btn) {
+  let m = document.getElementById('sound-menu');
+  if (m) { m.remove(); return; }
+  m = document.createElement('div');
+  m.id = 'sound-menu';
+  m.className = 'sound-menu';
+  m.innerHTML = `
+    <label class="sm-row"><input type="checkbox" id="sm-music" ${music.isEnabled() ? 'checked' : ''}> 🎵 Musik</label>
+    <input type="range" id="sm-vol" min="0" max="100" value="${Math.round(music.getVolume() * 100)}" aria-label="Lautstärke der Musik">
+    <label class="sm-row"><input type="checkbox" id="sm-sfx" ${sound.isMuted() ? '' : 'checked'}> 🔔 Soundeffekte</label>`;
+  document.body.append(m);
+  const r = btn.getBoundingClientRect();
+  m.style.top = `${r.bottom + 8}px`;
+  m.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+  m.querySelector('#sm-music').addEventListener('change', (e) => { music.setEnabled(e.target.checked); updateMuteButtons(); });
+  m.querySelector('#sm-vol').addEventListener('input', (e) => music.setVolume(e.target.value / 100));
+  m.querySelector('#sm-sfx').addEventListener('change', (e) => {
+    sound.setMuted(!e.target.checked);
+    updateMuteButtons();
+    if (e.target.checked) sound.play('click');
+  });
+}
+
 export function showScreen(name) {
+  if (name === 'home') music.stop();
   for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== name;
 }
 
@@ -230,6 +257,8 @@ function act(action) { handlers.act(action); }
 
 function onClick(e) {
   sound.unlock();
+  const menu = document.getElementById('sound-menu');
+  if (menu && !e.target.closest('#sound-menu, [data-ui="mute"]')) menu.remove();
   const btn = e.target.closest('[data-act],[data-card],[data-pile],[data-ui]');
   if (!btn || btn.disabled) return;
   const v = current;
@@ -287,12 +316,7 @@ function uiAction(what, btn) {
       <h3>Verlauf</h3><ol class="log">${$('#log').innerHTML}</ol>
       <button class="primary big" data-ui="close-modal">Schließen</button>`, 'wide sheet');
   }
-  if (what === 'mute') {
-    sound.setMuted(!sound.isMuted());
-    updateMuteButtons();
-    if (!sound.isMuted()) sound.play('click');
-    return;
-  }
+  if (what === 'mute') return toggleSoundMenu(btn);
   if (what === 'close-modal') return closeModal();
   if (what === 'copy-link') {
     const link = btn.dataset.link;
@@ -317,6 +341,8 @@ export function render(view) {
   const prevRects = fx.snapshot();
   current = view;
   if (!view.room) return;
+  music.start();
+  music.setTension(view.game?.phase === 'turn' && !!view.game.final);
   $('#room-code').textContent = view.room.code;
   if (!view.game) {
     lastSeq = null;

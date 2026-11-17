@@ -19,6 +19,11 @@ function audio() {
 }
 
 /** Browser erlauben Ton erst nach einer Nutzeraktion – beim ersten Klick freischalten. */
+/** Gemeinsamer Audio-Kontext (auch für die Musik). */
+export function getContext() {
+  return audio();
+}
+
 export function unlock() {
   const c = audio();
   if (!c) return;

@@ -193,6 +193,14 @@ h1 span, .brand span { color: var(--pink); }
 .turnbar.myturn .avatar { background: #fff; color: var(--pink-strong); }
 @keyframes glow { 50% { box-shadow: 0 6px 34px rgba(255, 95, 153, .75); } }
 .icon-btn { padding: 8px 12px; font-size: 1.05rem; line-height: 1; }
+.sound-menu {
+  position: fixed; z-index: 80; width: 230px; padding: 12px 14px; display: grid; gap: 10px;
+  background: #2b1b40; border: 1px solid var(--panel-border); border-radius: 14px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .5); animation: tickIn .2s ease-out;
+}
+.sm-row { display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; min-height: 32px; }
+.sm-row input { width: 20px; height: 20px; accent-color: var(--pink); }
+.sound-menu input[type=range] { width: 100%; accent-color: var(--pink); padding: 0; background: none; border: none; }
 
 .mine { border-top: 1px dashed var(--panel-border); padding-top: 10px; display: grid; justify-items: center; gap: 8px; border-radius: 16px; transition: background .2s; }
 .mine.active { background: rgba(255, 143, 184, .07); }

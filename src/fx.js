@@ -2,6 +2,7 @@
 // Ablauf: vor dem Neuzeichnen snapshot() → nach dem Neuzeichnen play(neueEreignisse, snapshot, …).
 
 import { play as sound, vibrate } from './sound.js';
+import { duck } from './music.js';
 
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -205,6 +206,7 @@ async function playOne(ev, prev, view, ctx) {
     }
     case 'call': {
       sound('call');
+      duck(2600);
       stamp('MAYHEM!', `${ctx.nameOf(ev.p)} beendet die Runde`);
       await wait(900);
       return;
@@ -230,6 +232,7 @@ async function playOne(ev, prev, view, ctx) {
     }
     case 'roundEnd': {
       sound(g.phase === 'gameOver' ? 'gameOver' : 'roundEnd');
+      duck(2500);
       return;
     }
     default:

@@ -26,6 +26,16 @@ Der Server hält den Spielstand und schickt jedem nur das, was er sehen darf –
 - Karten fliegen sichtbar vom Stapel in die Hand, auf die Ablage und beim Tauschen zwischen den Spielern.
 - Was im letzten Zug passiert ist, bleibt markiert (✨ neu, 🔄 getauscht, ⚠ Strafe, 👀 gespickt) und steht im Ticker.
 
+## Musik
+
+- Hintergrundmusik **„Lagerfeuer“**: Westerngitarre, gezupfte Nylongitarre, Bass, Mundharmonika & Pfeifen,
+  dazu knisterndes Feuer – eine eigene Komposition, die nahtlos in Schleife läuft.
+- Bei den **letzten Zügen** nach „MAYHEM!“ kommen Klatschen und Tamburin dazu; bei großen Momenten wird die Musik
+  kurz leiser.
+- 🔊 oben öffnet ein Menü: **Musik** (mit Lautstärke) und **Soundeffekte** getrennt an/aus.
+- Neu erzeugen / ändern: `python3 assets/music/compose.py` (braucht `fluidsynth`, `fluid-soundfont-gm`,
+  Python `mido` + `numpy`, `ffmpeg`).
+
 ## Auf dem Handy
 
 - Hochkant passt alles auf einen Bildschirm: Mitspieler oben (bei vielen seitlich wischen), Stapel in der Mitte,
@@ -110,4 +120,5 @@ npm run e2e           # Browser-Test: 3 Spieler gegen den lokalen Server (Playwr
 | `src/ui.js` | Darstellung, Karten-Grafiken, Klick-Abläufe, Markierungen |
 | `src/fx.js` | Animationen (fliegende Karten, Umdrehen, Hervorhebungen) |
 | `src/sound.js` | Soundeffekte (Web Audio API) |
+| `src/music.js` | Hintergrundmusik: nahtlose Schleife, Spannungs-Spur, Ducking |
 | `assets/` | Pixel-Art-Icons (`make_icon.py`), Schrift Fredoka (SIL OFL), Kartengeräusche (Kenney, CC0) |
